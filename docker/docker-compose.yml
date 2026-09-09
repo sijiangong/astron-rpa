@@ -4,6 +4,7 @@ x-env-file: &env_file
 
 volumes:
   mysql_data:
+  redis_data:
 
 services:
   mysql:
@@ -80,30 +81,11 @@ services:
     env_file: *env_file
 
   redis:
-    image: bitnami/redis:latest
+    image: redis:7-alpine
     container_name: rpa-opensource-redis
     restart: always
-    user: root
-    privileged: true
-    env_file: *env_file
-    environment:
-      - REDIS_AOF_ENABLED=no
-      - REDIS_PORT_NUMBER=${REDIS_PORT}
-      - REDIS_IO_THREADS=4
-      - ALLOW_EMPTY_PASSWORD=yes
-    # ports:
-    #  - "${REDIS_PORT}:6379"
     volumes:
-      - ./data/bitnami/redis:/bitnami/redis/data:rw,Z
-    command: >
-      bash -c "
-        /opt/bitnami/scripts/redis/setup.sh
-        # Set proper permissions for data directories
-        chown -R redis:redis /bitnami/redis/data
-        chmod g+s /bitnami/redis/data
-
-        exec /opt/bitnami/scripts/redis/entrypoint.sh /opt/bitnami/scripts/redis/run.sh
-      "
+      - redis_data:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -207,7 +189,7 @@ services:
       - rpa-opensource-network
 
   ai-service:
-    image: ghcr.io/iflytek/astron-rpa/ai-service:latest
+    image: ghcr.io/iflytek/astron-rpa/ai-service:v1.1.6
     # build:
     #  context: ..
     #  dockerfile: backend/ai-service/Dockerfile
@@ -221,8 +203,6 @@ services:
       - AICHAT_API_KEY=${AICHAT_API_KEY}
     # ports:
     #   - "8010:8010"
-    volumes:
-      - ../backend/ai-service/app:/app/app
     depends_on:
       mysql:
         condition: service_healthy
@@ -234,7 +214,7 @@ services:
       - rpa-opensource-network
 
   openapi-service:
-    image: ghcr.io/iflytek/astron-rpa/openapi-service:latest
+    image: ghcr.io/iflytek/astron-rpa/openapi-service:v1.1.6
     # build:
     #  context: ..
     #  dockerfile: backend/openapi-service/Dockerfile
@@ -248,8 +228,6 @@ services:
       - AICHAT_API_KEY=${AICHAT_API_KEY}
     # ports:
     #   - "8020:8020"
-    volumes:
-      - ../backend/openapi-service/app:/app/app
     depends_on:
       mysql:
         condition: service_healthy
@@ -261,7 +239,7 @@ services:
       - rpa-opensource-network
 
   resource-service:
-    image: ghcr.io/iflytek/astron-rpa/resource-service:latest
+    image: ghcr.io/iflytek/astron-rpa/resource-service:v1.1.6
     # build:
     #  context: ..
     #  dockerfile: backend/resource-service/Dockerfile
@@ -285,7 +263,7 @@ services:
       - rpa-opensource-network
 
   robot-service:
-    image: ghcr.io/iflytek/astron-rpa/robot-service:latest
+    image: ghcr.io/iflytek/astron-rpa/robot-service:v1.1.6
     # build:
     #  context: ..
     #  dockerfile: backend/robot-service/Dockerfile
@@ -307,7 +285,7 @@ services:
       - rpa-opensource-network
 
   rpa-auth:
-    image: ghcr.io/iflytek/astron-rpa/rpa-auth:latest
+    image: ghcr.io/iflytek/astron-rpa/rpa-auth:v1.1.6
     # build:
     #  context: ..
     #  dockerfile: backend/rpa-auth/Dockerfile
