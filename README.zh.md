@@ -6,7 +6,7 @@
 
 **🤖 首个完整开源的企业级RPA桌面应用**
 <p align="center">
-  <a href="https://www.iflyrpa.com">星辰RPA官网</a> ·
+  <a href="https://www.iflyrpa.com">HC RPA官网</a> ·
   <a href="./BUILD_GUIDE.zh.md">部署文档</a> ·
   <a href="https://www.iflyrpa.com/docs/">使用文档</a> ·
   <a href="./FAQ.zh.md">常见问题</a>

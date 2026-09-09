@@ -7,7 +7,7 @@
 **🤖 Pioneering Open-Source Enterprise RPA Desktop Application**
 
 <p align="center">
-  <a href="https://www.iflyrpa.com">Astron RPA Official Site</a> ·
+  <a href="https://www.iflyrpa.com">HC RPA Official Site</a> ·
   <a href="./BUILD_GUIDE.md">Deployment Guide</a> ·
   <a href="https://www.iflyrpa.com/docs/">User Documentation</a> ·
   <a href="./FAQ.md">FAQ</a>

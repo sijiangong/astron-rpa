@@ -30,7 +30,7 @@
   "aiElement": "AI Element",
   "all": "All",
   "apiKeyMg": "API keys",
-  "app": "Astron RPA",
+  "app": "HC RPA",
   "appDetails": "Application Details",
   "application": "application",
   "applicationDetails": "Application details",
@@ -872,7 +872,7 @@
   "similarElementsPickup": "Similar elements pickup",
   "smartComponent": {
     "assistantWorking": "Smart component generation assistant is working...",
-    "assistantTitle": "Astron RPA Smart Component Assistant",
+    "assistantTitle": "HC RPA Smart Component Assistant",
     "assistantSubtitle": "Helps you quickly create RPA components",
     "cancel": "Cancel",
     "checkDependenciesFailed": "Failed to check dependencies:",

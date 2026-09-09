@@ -1,6 +1,6 @@
 # @rpa/cli
 
-CLI tool for Astron RPA development.
+CLI tool for HC RPA development.
 
 ## Installation
 

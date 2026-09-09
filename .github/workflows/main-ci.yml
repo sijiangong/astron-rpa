@@ -61,7 +61,7 @@ jobs:
     steps:
       - name: Generate CI Summary
         run: |
-          echo "=== 🚀 Astron RPA CI Pipeline Summary ==="
+          echo "=== 🚀 HC RPA CI Pipeline Summary ==="
           echo ""
           echo "📁 Changed Components:"
           echo "  🔧 Engine: ${{ needs.check-changes.outputs.engine-changed }}"

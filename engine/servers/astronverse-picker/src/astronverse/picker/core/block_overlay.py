@@ -2,13 +2,13 @@
 全屏透明覆盖窗口模块
 
 在智能组件拾取完成后，创建一个全屏、置顶、透明的覆盖窗口，
-拦截除"星辰RPA"客户端窗口以外的所有鼠标操作，
+拦截除"HC RPA"客户端窗口以外的所有鼠标操作，
 直到元素保存完成后销毁覆盖窗口。
 
 技术方案: Win32 Layered Window + SetWindowRgn 区域挖洞
 - 创建全屏 TOPMOST 透明 Layered Window（alpha=1，几乎不可见）
-- 通过 SetWindowRgn 设置窗口区域为 "全屏 - 星辰RPA窗口区域"
-- "星辰RPA"区域无覆盖窗口，点击自然穿透到客户端
+- 通过 SetWindowRgn 设置窗口区域为 "全屏 - HC RPA窗口区域"
+- "HC RPA"区域无覆盖窗口，点击自然穿透到客户端
 - 其他区域有覆盖窗口，点击被拦截吞掉
 - 定时器定期刷新区域以适应窗口移动/缩放
 
@@ -55,7 +55,7 @@ def _delete_object(obj) -> bool:
 
 class BlockOverlay:
     """
-    全屏透明覆盖窗口 - 拦截除"星辰RPA"窗口外的所有鼠标操作。
+    全屏透明覆盖窗口 - 拦截除"HC RPA"窗口外的所有鼠标操作。
 
     使用方式::
 
@@ -68,7 +68,7 @@ class BlockOverlay:
     """
 
     _CLASS_NAME = "AstronRPABlockOverlay"
-    _RPA_WINDOW_KEYWORD = "星辰RPA"
+    _RPA_WINDOW_KEYWORD = "HC RPA"
 
     # 区域刷新间隔（毫秒）
     _REGION_UPDATE_MS = 300
@@ -91,7 +91,7 @@ class BlockOverlay:
         self._first_search = True
 
     def show(self):
-        """显示覆盖窗口，开始拦截所有非"星辰RPA"区域的鼠标操作"""
+        """显示覆盖窗口，开始拦截所有非"HC RPA"区域的鼠标操作"""
         with self._lock:
             if self._hwnd is not None:
                 logger.info("[BlockOverlay] 覆盖窗口已存在，跳过创建")
@@ -306,11 +306,11 @@ class BlockOverlay:
 
     def _find_rpa_window_rects(self) -> list[tuple]:
         """
-        查找所有"星辰RPA"相关窗口的屏幕矩形。
+        查找所有"HC RPA"相关窗口的屏幕矩形。
 
         策略:
         1. 枚举所有可见顶层窗口
-        2. 找到标题包含"星辰RPA"的窗口，记录其进程 ID
+        2. 找到标题包含"HC RPA"的窗口，记录其进程 ID
         3. 收集属于这些进程的所有可见窗口矩形（含弹窗/对话框）
         """
         window_list: list[tuple[int, int, str]] = []  # (hwnd, pid, title)

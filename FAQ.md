@@ -1,4 +1,4 @@
-# 🤖 Astron RPA Frequently Asked Questions (FAQ)
+# 🤖 HC RPA Frequently Asked Questions (FAQ)
 
 ## 📚 Table of Contents
 
@@ -15,7 +15,7 @@
 
 ### Q: Can the open-source client run on Linux?
 
-**A:** ❌ **Not yet!** The open-source version of Astron RPA client currently only supports Windows systems.
+**A:** ❌ **Not yet!** The open-source version of HC RPA client currently only supports Windows systems.
 
 **Supported Systems:**
 - ✅ Windows 10/11
@@ -124,7 +124,7 @@ If you've modified Python packages in the `engine` directory (such as `workflowl
 
 # 2. Copy to client installation directory
 # From: \astron-rpa\engine\shared\astronverse-workflowlib\src\astronverse\workflowlib
-# To: C:\Program Files\Astron RPA\data\python_core\Lib\site-packages\astronverse\workflowlib
+# To: C:\Program Files\HC RPA\data\python_core\Lib\site-packages\astronverse\workflowlib
 ```
 
 **Common Packages and Locations:**

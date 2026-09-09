@@ -1,6 +1,6 @@
 # @rpa/cli
 
-Astron RPA 开发的命令行工具。
+HC RPA 开发的命令行工具。
 
 ## 安装
 

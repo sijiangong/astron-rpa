@@ -2,7 +2,7 @@
   "name": "@rpa/cli",
   "version": "1.0.0",
   "type": "module",
-  "description": "CLI tool for Astron RPA plugin development",
+  "description": "CLI tool for HC RPA plugin development",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {

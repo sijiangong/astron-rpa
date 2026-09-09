@@ -1,7 +1,7 @@
 {
   "appId": "astron-rpa",
   "productName": "astron-rpa",
-  "artifactName": "星辰RPA-${version}-${arch}.${ext}",
+  "artifactName": "HC RPA-${version}-${arch}.${ext}",
   "electronLanguages": [
     "zh-CN",
     "en-US"
@@ -56,6 +56,6 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "星辰RPA"
+    "shortcutName": "HC RPA"
   }
 }

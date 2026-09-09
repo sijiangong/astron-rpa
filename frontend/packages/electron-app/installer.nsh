@@ -3,8 +3,8 @@
     ClearErrors
     WriteRegStr HKCR "astronrpa" "" "URL:astronrpa Protocol"
     WriteRegStr HKCR "astronrpa" "URL Protocol" ""
-    WriteRegStr HKCR "astronrpa" "FriendlyTypeName" "星辰RPA"
-    WriteRegStr HKCR "astronrpa\Application" "ApplicationName" "星辰RPA"
+    WriteRegStr HKCR "astronrpa" "FriendlyTypeName" "HC RPA"
+    WriteRegStr HKCR "astronrpa\Application" "ApplicationName" "HC RPA"
     WriteRegStr HKCR "astronrpa\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" -- "%1"'
     
     ; 如果 HKCR 写入失败（非管理员），则写入 HKCU (仅对当前用户生效)
@@ -12,8 +12,8 @@
         ClearErrors
         WriteRegStr HKCU "Software\Classes\astronrpa" "" "URL:astronrpa Protocol"
         WriteRegStr HKCU "Software\Classes\astronrpa" "URL Protocol" ""
-        WriteRegStr HKCU "Software\Classes\astronrpa" "FriendlyTypeName" "星辰RPA"
-        WriteRegStr HKCU "Software\Classes\astronrpa\Application" "ApplicationName" "星辰RPA"
+        WriteRegStr HKCU "Software\Classes\astronrpa" "FriendlyTypeName" "HC RPA"
+        WriteRegStr HKCU "Software\Classes\astronrpa\Application" "ApplicationName" "HC RPA"
         WriteRegStr HKCU "Software\Classes\astronrpa\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" -- "%1"'
     ${EndIf}
 !macroend

@@ -116,7 +116,7 @@ export function useInviteFlow(emits: { (e: 'joinSuccess'): void }) {
 
       Modal.warn({
         title: '安装提示',
-        content: '您当前未安装星辰RPA应用，是否前往下载？',
+        content: '您当前未安装HC RPA应用，是否前往下载？',
         okText: '去下载',
         onOk() {
           window.open('https://www.iflyrpa.com', '_blank')

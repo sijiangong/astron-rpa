@@ -8,7 +8,7 @@ const activeKey = ref('apiKey')
 
 const options = computed(() => ([
   {
-    label: '星辰RPA授权管理',
+    label: 'HC RPA授权管理',
     value: 'apiKey',
   },
   {

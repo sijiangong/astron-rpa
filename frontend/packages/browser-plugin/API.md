@@ -4,7 +4,7 @@
 
 ## 1. 概述
 
-- **插件简介**：Astron Browser Plugin是Astron RPA 在web自动化的重要组成部分，为Astron RPA提供Chrome/Edge/Firefox 等浏览器提供网页自动化能力
+- **插件简介**：Astron Browser Plugin是HC RPA 在web自动化的重要组成部分，为HC RPA提供Chrome/Edge/Firefox 等浏览器提供网页自动化能力
 - **主要特性**：
 
 * 浏览器Tab 页操作
@@ -552,7 +552,7 @@ curl -X POST 'http://127.0.0.1:9082/browser/transition' -H 'User-Agent: Reqable/
 
 ## 6. 注意事项
 
-- 插件通信依靠Astron RPA 客户端服务，请先打开Astron RPA 客户端
+- 插件通信依靠HC RPA 客户端服务，请先打开HC RPA 客户端
 - 插件通信依靠注册的token,token 会编码，例如Chrome 浏览器 token=$chrome$
 
 ## 7. 常见问题解答

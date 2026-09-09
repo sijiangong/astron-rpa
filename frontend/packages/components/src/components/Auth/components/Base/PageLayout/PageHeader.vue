@@ -10,7 +10,7 @@ import iconUrl from '../../../../../../../../public/icons/icon.png'
         :src="iconUrl"
       >
       <span class="text-base leading-5 font-bold">
-        星辰RPA
+        HC RPA
       </span>
     </div>
   </div>

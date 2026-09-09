@@ -1,4 +1,4 @@
-# 🤖 Astron RPA 常见问题解答 (FAQ)
+# 🤖 HC RPA 常见问题解答 (FAQ)
 
 ## 📚 文档目录
 
@@ -15,7 +15,7 @@
 
 ### Q: 开源版本客户端是否能在 Linux 上运行？
 
-**A:** ❌ **暂时不行！** 开源版本的 Astron RPA 客户端目前仅支持 Windows 系统。
+**A:** ❌ **暂时不行！** 开源版本的 HC RPA 客户端目前仅支持 Windows 系统。
 
 **支持的系统：**
 - ✅ Windows 10/11
@@ -124,7 +124,7 @@ docker-compose logs -f atlas
 
 # 2. 复制到客户端安装目录
 # 从：\astron-rpa\engine\shared\astronverse-workflowlib\src\astronverse\workflowlib
-# 复制到：C:\Program Files\Astron RPA\data\python_core\Lib\site-packages\astronverse\workflowlib
+# 复制到：C:\Program Files\HC RPA\data\python_core\Lib\site-packages\astronverse\workflowlib
 ```
 
 **常见包及其位置：**

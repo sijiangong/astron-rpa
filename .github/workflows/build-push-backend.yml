@@ -1,4 +1,4 @@
-name: Build and Push Astron RPA Backend Services
+name: Build and Push HC RPA Backend Services
 
 on:
   release:
@@ -350,7 +350,7 @@ jobs:
     steps:
       - name: Generate build summary
         run: |
-          echo "=== 🐳 astron RPA Backend Services Docker Build Summary ==="
+          echo "=== 🐳 HC RPA Backend Services Docker Build Summary ==="
           echo ""
           echo "🔍 Project Detection: ${{ needs.detect-and-prepare.result }}"
           echo "📊 Version: ${{ needs.detect-and-prepare.outputs.version }}"

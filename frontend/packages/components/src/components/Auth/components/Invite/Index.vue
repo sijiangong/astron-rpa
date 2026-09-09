@@ -61,7 +61,7 @@ const {
       :status="currentStatus"
       title="成功加入"
       :desc="inviteInfo.marketName || inviteInfo.deptName"
-      button-txt="进入星辰RPA"
+      button-txt="进入HC RPA"
       @click="openApp"
     />
     <StatusCard
@@ -69,7 +69,7 @@ const {
       :status="currentStatus"
       title="您已经加入，无需重复加入"
       :desc="inviteInfo.marketName || inviteInfo.deptName"
-      button-txt="进入星辰RPA"
+      button-txt="进入HC RPA"
       @click="openApp"
     />
     <StatusCard
