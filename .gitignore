@@ -162,3 +162,6 @@ resources/vnc/*
 frontend/pnpm-lock.yaml
 engine/servers/astronverse-executor/astron/*
 engine/servers/astronverse-executor/astron_extension/*
+# 用 /engine/.venv 运行流程时，astronverse-executor 在 engine 顶层生成的流程内核/组件缓存
+/engine/astron/
+/engine/astron_extension/
