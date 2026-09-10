@@ -82,11 +82,5 @@ async function checkUpdate() {
         </template>
       </div>
     </div>
-    <div
-      class="absolute w-full bottom-0 text-center text-text-tertiary text-xs"
-    >
-      生成式人工智能服务能力由 星火认知大模型 -
-      Anhui-XingHuoRenZhiDaMoXing-20230823 提供
-    </div>
   </div>
 </template>
