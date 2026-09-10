@@ -1,7 +1,8 @@
 import { exec } from 'node:child_process'
 import fs from 'node:fs/promises'
 import { join } from 'node:path'
-import { to } from 'await-to-js'
+
+import { app, dialog, shell } from 'electron'
 
 import { toUnicode } from '../common'
 
@@ -19,6 +20,86 @@ process.on('uncaughtException', (err) => {
 function sendToRender(message: string, percent: number) {
   const unicodeMessage = `{"type":"sync","msg":{"msg":"${toUnicode(message)}","step":${percent}}}`
   mainToRender('scheduler-event', unicodeMessage, undefined, true)
+}
+
+/**
+ * 通用重试封装。
+ * Windows 上文件/目录可能被杀软、索引等进程短暂占用，产生 EPERM/EBUSY 等瞬时失败，
+ * 退避重试可避免“解压成果已存在但重命名失败”导致的启动卡死。
+ */
+async function withRetry<T>(fn: () => Promise<T>, label: string, attempts = 5, baseDelayMs = 800): Promise<T> {
+  let lastError: unknown
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn()
+    }
+    catch (error) {
+      lastError = error
+      const code = (error as NodeJS.ErrnoException)?.code
+      logger.warn(`[重试 ${i}/${attempts}] ${label} 失败${code ? ` (${code})` : ''}: ${(error as Error)?.message}`)
+      if (i < attempts) {
+        await new Promise(resolve => setTimeout(resolve, baseDelayMs * i))
+      }
+    }
+  }
+  throw lastError
+}
+
+/**
+ * 将临时目录移动到目标目录。
+ * 优先 rename（带重试）；仍失败则退化为“递归复制 + 删除源”，确保解压成果不白费。
+ */
+async function moveDirWithRetry(srcDir: string, destDir: string): Promise<void> {
+  try {
+    await withRetry(() => fs.rename(srcDir, destDir), `重命名目录 ${srcDir} -> ${destDir}`)
+    return
+  }
+  catch (error) {
+    logger.warn(`重命名目录最终失败，改用「复制+删除」兜底: ${(error as Error)?.message}`)
+  }
+  await withRetry(() => fs.cp(srcDir, destDir, { recursive: true }), `复制目录 ${srcDir} -> ${destDir}`)
+  await withRetry(() => fs.rm(srcDir, { recursive: true, force: true }), `删除临时目录 ${srcDir}`)
+}
+
+// 应用是否正在关闭（关闭过程中引擎退出属正常，不应弹失败提示）
+let isShuttingDown = false
+
+/**
+ * 启动失败时给用户可见的提示。
+ * 之前只写日志，用户只会看到进度条停在一处、无从判断；这里弹窗并提供「打开日志目录」。
+ */
+async function notifyLaunchFailure(message: string, detail?: string): Promise<void> {
+  const logDir = join(appWorkPath, 'logs')
+  logger.error(`[启动失败] ${message}${detail ? ` | ${detail}` : ''}`)
+
+  if (isShuttingDown)
+    return
+
+  const options = {
+    type: 'error' as const,
+    title: '启动失败',
+    message,
+    detail: `${detail ? `${detail}\n\n` : ''}日志目录：${logDir}`,
+    buttons: ['打开日志目录', '退出应用'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  }
+
+  try {
+    const win = getMainWindow()
+    const { response } = win
+      ? await dialog.showMessageBox(win, options)
+      : await dialog.showMessageBox(options)
+    if (response === 0)
+      await shell.openPath(logDir)
+  }
+  catch (error) {
+    logger.error(`弹出启动失败提示时出错: ${error}`)
+  }
+
+  if (!isShuttingDown)
+    app.quit()
 }
 
 /**
@@ -82,9 +163,12 @@ export async function startServer() {
   rpaSetup.on('close', (code) => {
     if (code === 0) {
       logger.info(`${envJson.SCHEDULER_NAME} exited successfully.`)
+      return
     }
-    else {
-      logger.error(`${envJson.SCHEDULER_NAME} exited with error code: ${code}`)
+    logger.error(`${envJson.SCHEDULER_NAME} exited with error code: ${code}`)
+    // 非正常退出且非应用关闭时，给用户明确提示（否则界面会停在启动进度上）
+    if (!isShuttingDown) {
+      void notifyLaunchFailure('RPA 引擎启动失败，客户端无法正常工作', `进程退出码：${code}，详情见日志`)
     }
   })
 
@@ -97,6 +181,7 @@ export async function startServer() {
  * 关闭所有子进程
  */
 export function closeSubProcess() {
+  isShuttingDown = true
   return new Promise<void>((resolve) => {
     exec(
       `"${pythonExe}" -m ${envJson.SCHEDULER_NAME} --stop="True"`,
@@ -318,11 +403,33 @@ export async function startBackend() {
   const singlePercentStep = (90 - preStep) / needExtractFiles.length;
   sendToRender('正在解压Python包', preStep)
 
-  // 解压所有文件
-  await Promise.allSettled(needExtractFiles.map(file => extractAndCleanFile(file, (percent) => {
+  // 解压所有文件。
+  // 注意：之前直接忽略 allSettled 结果，导致失败时无任何日志、界面卡在 90% 无从排查，这里必须记录失败原因。
+  const extractResults = await Promise.allSettled(needExtractFiles.map(file => extractAndCleanFile(file, (percent) => {
     const newStep = preStep + (percent / 100 * singlePercentStep);
     sendToRender('解压中...', newStep)
   })))
+
+  extractResults.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      logger.error(`解压/安装失败: ${needExtractFiles[index]}`, result.reason)
+    }
+  })
+
+  // 校验关键产物是否就位（缺 python.exe 时引擎必然启动失败）
+  const extractFailed = extractResults.some(result => result.status === 'rejected')
+  const envMissing = await fs.access(pythonExe).then(() => false).catch(() => true)
+
+  // 环境不可用时必须给用户明确提示，而不是让进度条静默停在 90%
+  if (extractFailed || envMissing) {
+    await notifyLaunchFailure(
+      'Python 运行环境初始化失败，客户端无法启动',
+      envMissing ? `未找到：${pythonExe}` : 'Python 运行环境解压/安装失败',
+    )
+    return
+  }
+
+  logger.info(`python 运行环境就绪: ${pythonExe}`)
 
   startServer()
 }
@@ -336,24 +443,26 @@ async function extractAndCleanFile(fileName: string, percentCallback: (percent: 
   const outputDir = join(appWorkPath, fileName.replace('.7z', ''))
   const tempOutputDir = `${outputDir}.temp`
 
-  // 1. 确保临时目录/目标目录不存在
-  const [error] = await to(Promise.all([
-    fs.rm(tempOutputDir, { recursive: true, force: true }),
-    fs.rm(outputDir, { recursive: true, force: true })
-  ]))
-  if (error) {
-    logger.error(`文件被占用: ${error}`)
-    return
+  // 1. 确保临时目录/目标目录不存在（清除失败则直接抛错，避免后续解压到脏目录）
+  try {
+    await withRetry(() => Promise.all([
+      fs.rm(tempOutputDir, { recursive: true, force: true }),
+      fs.rm(outputDir, { recursive: true, force: true })
+    ]), '清理解压目录')
   }
-  logger.info("删除已解压目录")
+  catch (error) {
+    logger.error(`文件被占用，无法清理解压目录: ${error}`)
+    throw error
+  }
+  logger.info('删除已解压目录')
 
   // 2. 解压到临时目录
   logger.info(`开始解压到临时目录: ${tempOutputDir}`)
   await extract7z(archivePath, tempOutputDir, percentCallback)
 
-  // 3. 将临时目录重命名为目标目录
+  // 3. 将临时目录重命名为目标目录（带重试 + 复制兜底）
   logger.info(`重命名为目标目录: ${outputDir}`)
-  await fs.rename(tempOutputDir, outputDir)
+  await moveDirWithRetry(tempOutputDir, outputDir)
 
   // 4. 复制 hash 文件
   await copySingleFile(`${fileName}.sha256.txt`)
