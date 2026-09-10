@@ -274,7 +274,12 @@ https://newapi.iflyrpa.com/api/rpa-openapi/workflows/get
 http://{IP_ADDRESS}:32742/api/rpa-openapi/workflows/get
 ```
 
-> 📌 **提醒：** 所有想要被外部调用的机器人需要在设计器中发版，然后在执行器中进行外部调用配置
+> 📌 **提醒：** 所有想要被外部调用的机器人需要先**在设计器中发版**，再**在执行器中开通外部调用**：
+>
+> **执行器 → 应用列表 → 目标应用所在行末尾的 `⋯` 菜单 → 「外部调用配置」→ 填写名称/简介、打开“允许外部调用”开关 → 保存**
+>
+> ⚠️ 该入口**仅在“来源=本地”的应用行上出现**（从市场获取的应用没有此项）。
+> ⚠️ 未做这一步的应用，**不会出现在 Astron Agent 的资源管理/晓悟RPA 列表中**（agent 只读 `openai_workflows`，而“发版”不会写这张表）。
 
 ---
 
@@ -292,8 +297,10 @@ docker ps -a
 docker logs [container_name] > logs.txt
 
 # 2️⃣ 查询客户端日志
-# 日志保存在：安装目录下\data\logs
-# 如果软件安装在 C 盘：%APPDATA%\astron-rpa\logs
+# 安装版：%APPDATA%\<productName>\logs\main.log（当前为 %APPDATA%\hc-rpa\logs\main.log）
+# 开发模式（未打包）：<项目目录>/packages/electron-app/data/logs/main.log
+# 引擎（Python）日志也在用户数据目录的 logs/ 下
+# 详见：docs/devel/zh-CN/client-build-and-logs.md
 ```
 
 ---

@@ -274,7 +274,12 @@ https://newapi.iflyrpa.com/api/rpa-openapi/workflows/get
 http://{IP_ADDRESS}:32742/api/rpa-openapi/workflows/get
 ```
 
-> 📌 **Reminder:** All robots that need to be called externally need to be published in the designer first, then configured for external calls in the executor
+> 📌 **Reminder:** A robot must be **published in the designer** first, then **enabled for external calls in the executor**:
+>
+> **Executor → App list → the `⋯` menu at the end of the target row → “External Call Configuration” → fill in name/description, turn on “Allow external call” → Save**
+>
+> ⚠️ This entry only appears on rows whose **Source = Local** (apps obtained from the market do not have it).
+> ⚠️ Without this step, the app **will NOT appear in Astron Agent's resource list (Xiaowu RPA)** — the agent only reads `openai_workflows`, which publishing does not write.
 
 ---
 
@@ -292,8 +297,10 @@ docker ps -a
 docker logs [container_name] > logs.txt
 
 # 2️⃣ Query client logs
-# Logs are saved in: installation_directory\data\logs
-# If software is installed on C drive: %APPDATA%\astron-rpa\logs
+# Installed build: %APPDATA%\<productName>\logs\main.log (currently %APPDATA%\hc-rpa\logs\main.log)
+# Dev mode (unpackaged): <project>/packages/electron-app/data/logs/main.log
+# Engine (Python) logs are also under the user data dir's logs/
+# See: docs/devel/zh-CN/client-build-and-logs.md
 ```
 
 ---

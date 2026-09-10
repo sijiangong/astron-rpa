@@ -305,6 +305,30 @@ Content-Type: application/json
 - 任务查询：`GET {XIAOWU_RPA_TASK_QUERY_URL}/{task_id}`，同样带 Bearer
 - API key 在 astron-rpa 客户端「设置 → API keys」生成
 
+### 7.1 关键：agent 看不到 RPA 应用？「发版」≠「开通外部调用」
+
+**现象**：在 HC RPA 客户端发版了新应用，但 Astron Agent「资源管理 → 晓悟RPA」列表里始终不出现（之前靠手工 `INSERT INTO openai_workflows` 才能绕过）。
+
+**根因（代码定位）**：
+- agent 侧列表只读 RPA 库的 `openai_workflows`（属于 `openapi-service`，按 API Key 对应的 `user_id` 过滤）
+- 该表**唯一写入入口**是 `POST /api/rpa-openapi/workflows/upsert`
+- 客户端里**只有「外部调用配置」弹窗**会调用它（`web-app/.../views/Home/components/modals/McpConfigModal/index.vue` → `setRobotIsExternalCall`）
+- 「发版」走的是 robot-service（`robot_design`/`robot_version`/`robot_execute`），**不会写** `openai_workflows`
+
+**正确操作**：
+
+> **执行器 → 应用列表 → 目标应用所在行末尾的 `⋯` → 「外部调用配置」→ 填写必填项（名称/简介；`parameters` 每项 `varDescribe` 不能为空）→ 打开“允许外部调用”→ 保存**
+
+⚠️ 入口**仅在“来源=本地”的行**出现（`useRobotTableOption.tsx`：`sourceName === '本地' ? localMoreOpts : marketMoreOpts`，“本地”由 `robot_execute.data_source = 'create'` 映射）。若应用行来自市场，则没有这一项。
+
+**只读核对**：
+```sql
+-- 应出现该应用且 status=1；user_id 必须与 agent 使用的 API Key 属于同一用户
+SELECT project_id, name, user_id, status FROM openai_workflows;
+-- 执行器列表的来源（create=本地，deploy/market=非本地）
+SELECT id, robot_id, name, data_source FROM robot_execute WHERE name LIKE '%应用名%';
+```
+
 ---
 
 ## 8. 过程中的环境坑（写给后续操作）
