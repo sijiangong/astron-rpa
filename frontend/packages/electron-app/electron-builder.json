@@ -1,7 +1,7 @@
 {
-  "appId": "astron-rpa",
-  "productName": "astron-rpa",
-  "artifactName": "HC RPA-${version}-${arch}.${ext}",
+  "appId": "hc-rpa",
+  "productName": "hc-rpa",
+  "artifactName": "hc-rpa-${version}-${arch}.${ext}",
   "electronLanguages": [
     "zh-CN",
     "en-US"
@@ -22,7 +22,7 @@
   "win": {
     "target": "nsis",
     "icon": "../../public/icons/icon.ico",
-    "publisherName": "astron-rpa",
+    "publisherName": "hc-rpa",
     "verifyUpdateCodeSignature": false,
     "publish": {
       "provider": "generic",
@@ -56,6 +56,7 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
+    "uninstallDisplayName": "HC RPA",
     "shortcutName": "HC RPA"
   }
 }
