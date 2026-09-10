@@ -1,14 +1,9 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia'
 import { NiceModal } from '@rpa/components'
 import { Tooltip } from 'ant-design-vue'
 
 import { SettingCenterModal } from '@/components/SettingCenterModal'
-import { utilsManager } from '@/platform'
-import { usePermissionStore } from '@/stores/usePermissionStore'
-import { useAppConfigStore } from '@/stores/useAppConfig'
 import useUserSettingStore from '@/stores/useUserSetting.ts'
-import { useUserStore } from '@/stores/useUserStore'
 
 import MessageTip from '../MesssageTip/Index.vue'
 import Updater from './Updater.vue'
@@ -33,17 +28,8 @@ const props = withDefaults(defineProps<HeaderControlProps>(), ({
 
 useUserSettingStore()
 
-const appStore = useAppConfigStore()
-const userStore = useUserStore()
-const permissionStore = usePermissionStore()
-const { appInfo } = storeToRefs(appStore)
-
 function handleOpenSetting() {
   NiceModal.show(SettingCenterModal)
-}
-
-function handleToControl() {
-  utilsManager.openInBrowser(`${appInfo.value.remotePath}admin/`)
 }
 </script>
 
@@ -58,11 +44,6 @@ function handleToControl() {
     </ControlButton>
   </Tooltip>
 
-  <Tooltip v-if="props.control && userStore.currentTenant?.tenantType !== 'personal' && permissionStore.can('console', 'all')" :title="$t('excellenceCenter')">
-    <ControlButton @click="handleToControl">
-      <rpa-icon name="desktop" />
-    </ControlButton>
-  </Tooltip>
   <ControlButton v-if="props.message">
     <MessageTip />
   </ControlButton>

@@ -12,7 +12,6 @@ export async function permission() {
   const data = [
     { resource: DESIGNER, actions: ['all'], permissionKey: 'moduleDesigner' },
     { resource: ACTUATOR, actions: ['all'], permissionKey: 'moduleExecutor' },
-    { resource: 'console', actions: ['all'], permissionKey: 'moduleConsole' },
     { resource: APPLICATIONMARKET, actions: ['all'], permissionKey: 'moduleMarket' },
   ].filter(i => entitlement[i.permissionKey])
   return data
