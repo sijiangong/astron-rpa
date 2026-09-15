@@ -56,5 +56,6 @@
 - 请确保 `.env` 文件中接口地址正确可用，参考 `.env.example`。
 - 合并逻辑以本地为主，远程未包含的内容会被补充。
 - 上传操作不可逆，请谨慎确认。
+- `astronverse-database` 不仅被 meta 生成跳过，也**不在引擎依赖与 `uv.lock` 中**（`pyproject.toml` / `requirements.txt` / `build.bat` 均已排除）。原因、影响与验证方式见 [引擎依赖变更记录](../docs/devel/zh-CN/engine-dependency-changes.md)。
 
 如有问题请联系项目维护者。

@@ -56,5 +56,6 @@ This project uses the `meta_json.py` script to automatically build, merge, and u
 - Please ensure that the API URLs in the `.env` file are correct and accessible. You can refer to `.env.example`.
 - The merge logic prioritizes local changes; any content not present in the remote configuration will be added.
 - The upload operation is irreversible. Please confirm with caution.
+- `astronverse-database` is not only skipped during meta generation, it is also **absent from the engine dependencies and `uv.lock`** (excluded in `pyproject.toml`, `requirements.txt` and `build.bat`). See [engine dependency change log](../docs/devel/zh-CN/engine-dependency-changes.md) for the rationale, impact and verification steps.
 
 If you have any questions, please contact the project maintainer.
