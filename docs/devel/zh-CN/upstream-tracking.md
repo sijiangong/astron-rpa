@@ -33,6 +33,7 @@ git fetch upstream --tags --prune             # 实测 2.7s / 425 objects / 444 
 | 上游提交 | 标题 | 上游分支 | 本仓库提交 | 吸收日期 | 状态 | 备注 |
 |---|---|---|---|---|---|---|
 | `5bae24aa` | feat(ai-service): add pytz dependency for timezone support | main | `a6ad64d3` | 2026-09-16 | 分支 `fix/ai-service-pytz`，**待合并** | 等价提交：dev 线为 `53b7b02b`，两者 pyproject 指纹一致（`83393786…`）。官方 **v1.1.6 tag 未含此修复** → 线上 ai-service 启动即崩（502）。**额外做了上游没做的事**：同步 `uv.lock`（上游 main 的锁文件至今仍缺 pytz） |
+| `03b4ad0b` | fix(client): protect terminal credentials in logs and generation (#866) | main | `dfe30cab` | 2026-09-16 | 分支 `fix/terminal-credential-logging`，**待合并** | 两处：①终端注册日志曾把整个请求体（含 `osPwd`）写进 `logs/scheduler-*.log` → 改为只记录 `terminalId`/`status`；②终端密码由 `random.choice` 改 `secrets.choice`。上游自带单测在本仓库通过（2 passed，含"密码出现在请求体、不出现在日志"断言），`ruff format --check` 通过。**移植前专门核过底层 logger 是 loguru**（支持 `{}` 占位 + 参数）——若为 stdlib logging 的 `%` 风格，这种写法会静默丢日志 |
 
 ---
 
@@ -43,7 +44,6 @@ git fetch upstream --tags --prune             # 实测 2.7s / 425 objects / 444 
 | 上游提交 | 标题 | 价值 | 备注 |
 |---|---|---|---|
 | `684021b0` | fix(ai-service): preserve versioned API base paths (#828) | 高 · 接口兼容 | ai-service 仅此两个候选 |
-| `03b4ad0b` | fix(client): protect terminal credentials in logs and generation (#866) | 高 · 安全 | 终端凭据不再落日志 |
 | `9b654dc9` | feat: restrict scheduler access to local clients (#809) | 高 · 安全 | 引擎调度器仅本地可访问 |
 | `be240e5f` | Update router binary with LAN access guard (#811) | 高 · 安全 | 与上条同批 |
 | `35e14f15` | fix: off-by-one error in task retry handling (#845) | 中 · 稳定性 | 任务重试次数 |
