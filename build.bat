@@ -63,6 +63,11 @@ echo   --skip-engine              Skip engine (Python) build
 echo   --skip-frontend            Skip frontend build
 echo   --help, -h                 Display this help message
 echo.
+echo Environment variables (override script defaults):
+echo   PYTHON_EXE                 Python executable path (default: C:\Program Files\Python313\python.exe)
+echo   SEVENZ_EXE                 7-Zip executable path (default: C:\Program Files\7-Zip\7z.exe)
+echo   PYPI_INDEX_URL             PyPI index URL (default: Tsinghua mirror)
+echo.
 echo Examples:
 echo   build.bat --python-exe "C:\Python313\python.exe"
 echo   build.bat -p "C:\Python313\python.exe" -s "C:\7-Zip\7z.exe"
@@ -79,6 +84,10 @@ REM ============================================
 
 if "%PYTHON_EXE%"=="" set PYTHON_EXE=C:\Program Files\Python313\python.exe
 if "%SEVENZ_EXE%"=="" set SEVENZ_EXE=C:\Program Files\7-Zip\7z.exe
+REM PyPI index: defaults to the Tsinghua mirror. When that mirror is unavailable
+REM (403/timeout), override it without editing this script, e.g.:
+REM   set PYPI_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+if "%PYPI_INDEX_URL%"=="" set PYPI_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 set ENGINE_DIR=engine
 set BUILD_DIR=build
 set PYTHON_CORE_DIR=%BUILD_DIR%\python_core
@@ -253,7 +262,7 @@ REM 4.3. Install Packages
 REM ============================================
 
 echo Upgrading pip...
-%PYTHON_CORE_DIR%\python.exe -m pip install --upgrade pip 2>nul
+%PYTHON_CORE_DIR%\python.exe -m pip install --upgrade pip -i "%PYPI_INDEX_URL%" 2>nul
 
 echo Generating requirements.txt from built packages...
 
@@ -261,7 +270,7 @@ REM Generate requirements.txt from wheel files using PowerShell
 powershell -Command "$files = Get-ChildItem '%DIST_DIR%\*.whl' | ForEach-Object { $name = $_.BaseName -replace '_','-'; $name -replace '-\d+\.\d+\.\d+-py3-none-any$','' }; Set-Content -Path '%ENGINE_DIR%\requirements.txt' -Value '# Generated requirements from built packages'; Add-Content -Path '%ENGINE_DIR%\requirements.txt' -Value $files"
 
 echo Installing packages from requirements.txt...
-uv pip install --link-mode=copy --python "%PYTHON_CORE_DIR%\python.exe" --find-links="%DIST_DIR%" -r "%ENGINE_DIR%\requirements.txt" --upgrade --force-reinstall -i https://pypi.tuna.tsinghua.edu.cn/simple
+uv pip install --link-mode=copy --python "%PYTHON_CORE_DIR%\python.exe" --find-links="%DIST_DIR%" -r "%ENGINE_DIR%\requirements.txt" --upgrade --force-reinstall -i "%PYPI_INDEX_URL%"
 if errorlevel 1 (
     echo Package installation failed
     exit /b 1

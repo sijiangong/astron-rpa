@@ -113,6 +113,7 @@ git switch feature/v1.1.6-base && git merge --no-ff fix/<topic>
 | `frontend/packages/electron-app/src/main/server.ts` | 上游改过 1 次（python 环境解压加固） | 冲突时以"上游逻辑 + 我们的加固补丁"合并 |
 | `electron-builder.json` | 上游改过 1 次（品牌/标识） | 尽量收敛到少数文件 |
 | `backend/ai-service/uv.lock` | 上游至今未同步 pytz（我们已同步） | **有意偏离**，勿"向对齐上游"而回退 |
+| `build.bat` | 上游把 PyPI 索引**硬编码**为清华源：2026-09-16 实测该源对 `pandas` 返回 403，引擎段打包在依赖安装处直接失败（pypi.org / 阿里云均 200），而写死导致无法绕过、只能改脚本。我们参数化为 `PYPI_INDEX_URL`（**默认值仍是清华源**，行为不变；镜像不可用时用环境变量覆盖），并给 `--help` 补上了三个可覆盖变量 | **有意偏离**，勿回退；若上游日后自己做了参数化，以"保留可覆盖能力"为原则合并 |
 
 纪律三条：
 
