@@ -34,7 +34,7 @@ git fetch upstream --tags --prune             # 实测 2.7s / 425 objects / 444 
 |---|---|---|---|---|---|---|
 | `5bae24aa` | feat(ai-service): add pytz dependency for timezone support | main | `a6ad64d3` | 2026-09-16 | **已合并**（merge `8f441b4c`） | 等价提交：dev 线为 `53b7b02b`，两者 pyproject 指纹一致（`83393786…`）。官方 **v1.1.6 tag 未含此修复** → 线上 ai-service 启动即崩（502）。**额外做了上游没做的事**：同步 `uv.lock`（上游 main 的锁文件至今仍缺 pytz） |
 | `03b4ad0b` | fix(client): protect terminal credentials in logs and generation (#866) | main | `dfe30cab` | 2026-09-16 | **已合并**（merge `17fdea56`） | 两处：①终端注册日志曾把整个请求体（含 `osPwd`）写进 `logs/scheduler-*.log` → 改为只记录 `terminalId`/`status`；②终端密码由 `random.choice` 改 `secrets.choice`。上游自带单测在本仓库通过（2 passed，含"密码出现在请求体、不出现在日志"断言），`ruff format --check` 通过。**移植前专门核过底层 logger 是 loguru**（支持 `{}` 占位 + 参数）——若为 stdlib logging 的 `%` 风格，这种写法会静默丢日志 |
-| `9b654dc9` | feat: restrict scheduler access to local clients (#809) | main | `d9b282e2` | 2026-09-16 | 分支 `fix/local-access-guard`，**待合并** | 本地服务收口到回环：新增 `access_control.py` 中间件（非本地来源 → 403）+ 非本地 WebSocket `close(1008)` + 浏览器桥/视觉拾取只监听 `127.0.0.1`；白名单保留 `/terminal*`、`/executor*`（服务端下发任务依赖）。上游无测试 —— 本仓库补 18 条断言验证（loopback 放行 / 内网与公网拒绝 / 无 client 信息拒绝 / 白名单放行）。**前置确认：本产品无跨机访问引擎或浏览器桥的用法** |
+| `9b654dc9` | feat: restrict scheduler access to local clients (#809) | main | `d9b282e2` | 2026-09-16 | **已合并**（merge `0f8b991d`） | 本地服务收口到回环：新增 `access_control.py` 中间件（非本地来源 → 403）+ 非本地 WebSocket `close(1008)` + 浏览器桥/视觉拾取只监听 `127.0.0.1`；白名单保留 `/terminal*`、`/executor*`（服务端下发任务依赖）。上游无测试 —— 本仓库补 18 条断言验证（loopback 放行 / 内网与公网拒绝 / 无 client 信息拒绝 / 白名单放行）。**前置确认：本产品无跨机访问引擎或浏览器桥的用法** |
 
 ---
 
