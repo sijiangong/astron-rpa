@@ -6,8 +6,8 @@ const Utils: UtilsManager = {
   getAppConfig: () => Promise.resolve({
     remote_addr: 'http://172.29.231.250:32742/',
     skip_engine_start: false,
-    app_auth_type: 'uap',
-    app_edition: 'saas',
+    app_auth_type: import.meta.env.VITE_AUTH_TYPE || 'casdoor',
+    app_edition: import.meta.env.VITE_EDITION || 'saas',
   }),
   getUserPath: () => Promise.resolve('/unknown'),
   getBuildInfo: () => Promise.resolve('browser'),
