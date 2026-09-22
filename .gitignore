@@ -154,6 +154,9 @@ coverage.out
 /engine/venvs/
 /pack_workspace/*
 
+# 本地部署打包产物（手工 tar 生成的临时部署包，不入库）
+/docker-deploy.tgz
+
 /docker/data/
 
 resources/*.7z
