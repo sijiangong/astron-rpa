@@ -79,7 +79,7 @@ def build_messages(request: SmartChatRequest) -> list[dict]:
 async def smart_chat_stream(request: SmartChatRequest):
     llm_params = ChatCompletionParam(
         # model='claude-4.5-sonnet',
-        model="maas/deepseek-v3.2",
+        model="deepseek-flash",
         stream=True,
         temperature=0.15,
         max_tokens=8192,
@@ -93,7 +93,7 @@ async def smart_chat_stream(request: SmartChatRequest):
 async def smart_chat(request: SmartChatRequest):
     llm_params = ChatCompletionParam(
         # model='claude-4.5-sonnet',
-        model="maas/deepseek-v3.2",
+        model="deepseek-flash",
         stream=False,
         temperature=0.15,
         max_tokens=8192,

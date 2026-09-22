@@ -2,7 +2,9 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-DEFAULT_MODEL = "maas/deepseek-v3.2"
+# 默认模型：接 DeepSeek 官方（AICHAT_BASE_URL=https://api.deepseek.com/）时用 deepseek-flash；
+# 若改回聚合网关（maas/... 命名空间），需同步改回并重建镜像
+DEFAULT_MODEL = "deepseek-flash"
 
 
 class ChatCompletionParam(BaseModel):
