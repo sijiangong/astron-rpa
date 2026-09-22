@@ -113,6 +113,11 @@ git switch feature/v1.1.6-base && git merge --no-ff fix/<topic>
 | `electron-builder.json` | 上游改过 1 次（品牌/标识） | 尽量收敛到少数文件 |
 | `backend/ai-service/uv.lock` | 上游至今未同步 pytz（我们已同步） | **有意偏离**，勿"向对齐上游"而回退 |
 | `build.bat` | 上游把 PyPI 索引**硬编码**为清华源：2026-09-16 实测该源对 `pandas` 返回 403，引擎段打包在依赖安装处直接失败（pypi.org / 阿里云均 200），而写死导致无法绕过、只能改脚本。我们参数化为 `PYPI_INDEX_URL`（**默认值仍是清华源**，行为不变；镜像不可用时用环境变量覆盖），并给 `--help` 补上了三个可覆盖变量 | **有意偏离**，勿回退；若上游日后自己做了参数化，以"保留可覆盖能力"为原则合并 |
+| `backend/ai-service/app/schemas/chat.py`、`routers/smart_component.py` | 自部署接 **DeepSeek 官方**，默认模型由网关写法 `maas/deepseek-v3.2` 改为 `deepseek-flash`（上游用自家 MaaS 网关，两者模型 id 不通用） | **有意偏离**；合并上游 AI 相关改动时以"模型可配置"为原则（建议后续把 `SMART_MODEL`/`CUA_MODEL` 参数化） |
+| `backend/ai-service/Dockerfile` | 新增 `APT_MIRROR` / `PIP_INDEX_URL` 两个 `ARG`（**默认值仍是官方源**，行为不变），用于国内构建换源提速：2026-09-22 实测服务器上 apt 那步要 153s | **可选偏离**，勿回退；上游若自做参数化，保留可覆盖能力即可 |
+| `docker/docker-compose.hc.yml`（新增） | 自建 ai-service 镜像的覆盖层（`image` 本地名 + `build.context: ../src` + 构建参数），按本节既定方向"上游文件保持原样"新增，并不修改 `docker/docker-compose.yml` | 保持独立文件；**不要合并回** `docker-compose.yml` |
+| `docker/.env.example` | 补充 AI 端点示例（DeepSeek 官方 / 自建网关两种）与 `AI_SERVICE_IMAGE`/`APT_MIRROR`/`PIP_INDEX_URL`/`COMPOSE_FILE` 说明 | 均为注释，不影响上游默认行为 |
+| `c_atom_meta_new` 的 id 62/64（运行时数据） | 客户端 ChatAI 下拉里的 `maas/...` 已改为 `deepseek-flash`/`deepseek-v4-pro` | **不在仓库里**（属部署数据）；重建库会回退到种子文件的上游值，需重放 |
 
 纪律三条：
 

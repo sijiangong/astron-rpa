@@ -149,7 +149,7 @@ AICHAT_API_KEY="<网关 key>"
 - 改之前先确认网关上架了它：`curl -H "Authorization: Bearer <key>" "https://<网关域名>/v1/models"`；
 - 想换新一代（网关上的 v4 之类）：流程原子用"自定义模型"即可；**智能组件要换则必须改服务端**（`schemas/chat.py:5` + `smart_component.py:82,96`）并重建镜像。
 
-#### 方案② 接 DeepSeek 官方（必须连带改模型 id）
+#### 方案② 接 DeepSeek 官方（✅ 本项目已采用，落地记录见 §2.6）
 
 ```bash
 AICHAT_BASE_URL="https://api.deepseek.com/"   # 官方现行文档不带 /v1；仓库 README/FAQ 里的 /v1/ 属旧兼容写法
@@ -177,6 +177,59 @@ AICHAT_API_KEY="sk-..."
 2. `docker exec <c> python -c "import app.main"` → 无异常；
 3. 调 `GET /api/rpa-ai-service/v1/models` → 200，且返回列表里有你要用的模型 id；
 4. 客户端"编辑应用 → 智能组件 → 优化提问" → 不再 5xx。
+
+### 2.6 本项目实际落地：服务器上自建 ai-service 镜像（路线 3）
+
+**为什么必须自建镜像**：正式服务器拉的是上游 `ghcr.io/iflytek/astron-rpa/ai-service:v1.1.6`，该镜像缺 `pytz`（§4.1），**只改 `.env` 修不了**；只有从本仓库源码构建的镜像才带 pytz 修复。
+
+**本仓库为此新增/改动（已提交）**：
+
+| 文件 | 作用 |
+|---|---|
+| `backend/ai-service/Dockerfile` | 新增 `APT_MIRROR` / `PIP_INDEX_URL` 两个 `ARG`（默认仍是官方源，行为不变），国内构建换源提速 |
+| `docker/docker-compose.hc.yml` | 覆盖层：ai-service 用自建镜像 + `build:`（`context: ../src`）+ 构建参数；**不改上游 `docker-compose.yml`** |
+| `docker/.env.example` | 补充 AI 端点示例与 `AI_SERVICE_IMAGE`/`APT_MIRROR`/`PIP_INDEX_URL`/`COMPOSE_FILE` 说明 |
+
+**部署步骤（服务器无源码也能跑）**：
+
+```bash
+# 0) 本地：从提交里导出源码（用 git archive，保证 LF 行尾与提交内容一致）
+git archive --format=tar.gz -o ai-service-src.tgz HEAD backend/ai-service
+scp ai-service-src.tgz <user>@<server>:/tmp/
+
+# 1) 服务器：解到 docker/ 的上一级
+mkdir -p /opt/hc-rpa/src && tar xzf /tmp/ai-service-src.tgz -C /opt/hc-rpa/src
+ls /opt/hc-rpa/src/backend/ai-service/        # Dockerfile app pyproject.toml uv.lock README.md
+
+# 2) 服务器：拿到覆盖层（随 docker/ 一起分发）并在 .env 里启用
+cd /opt/hc-rpa/docker
+cp .env .env.bak.$(date +%F); cp docker-compose.yml docker-compose.yml.bak.$(date +%F)
+#   .env 需包含：
+#     AICHAT_BASE_URL="https://api.deepseek.com/"
+#     AICHAT_API_KEY="sk-..."
+#     COMPOSE_FILE=docker-compose.yml:docker-compose.hc.yml
+
+# 3) 构建 + 换容器 + 重启 nginx
+docker compose build ai-service                        # 首次 2-3 分钟（换国内源后）
+docker compose up -d --force-recreate --no-build ai-service
+docker compose restart openresty-nginx                 # 必须：容器 IP 变了
+
+# 4) 验证四条
+docker inspect rpa-opensource-ai-service --format 'image={{.Config.Image}} restarts={{.RestartCount}}'
+docker exec rpa-opensource-ai-service python -c "import pytz, app.main; print('ok', pytz.__version__)"
+docker exec rpa-opensource-ai-service printenv AICHAT_BASE_URL
+docker exec rpa-opensource-ai-service python -c "import os,json,urllib.request as u; r=u.Request(os.environ['AICHAT_BASE_URL'].rstrip('/')+'/models',headers={'Authorization':'Bearer '+os.environ['AICHAT_API_KEY']}); print([m['id'] for m in json.load(u.urlopen(r,timeout=10))['data']])"
+```
+
+**实测结果（2026-09-22，正式服务器）**：镜像 `hc-rpa/ai-service:deepseek-flash`、`restarts=0`、容器内 Python 3.13.15、`pytz 2026.3.post1`、`/models` 返回 `['deepseek-flash', 'deepseek-v4-pro']`。
+
+**踩坑记录**：
+
+1. `docker compose up -d <service>` 会把该服务的 **`depends_on` 依赖**一并纳入本次操作，`--force-recreate` 对它们同样生效 —— 实测 mysql / casdoor 被一起重建（数据在命名卷/卷里，无损失）；只想动 ai-service 就加 `--no-deps`。
+2. `build.context` 按**基础 compose 文件所在目录**解析（不是当前 shell 目录），所以上游注释里的 `context: ..` 必须改成 `../src`。
+3. 覆盖层里的 `image:` 必须是**本地名**（`hc-rpa/ai-service:...`）；若沿用 `ghcr.io/iflytek/...`，之后任何 `docker compose pull` 都会把官方镜像（缺 pytz）拉回来覆盖 → 502 复发。
+4. 用 `git archive` 导出源码包，而不是直接 `tar` 工作区：Windows 工作区是 CRLF，Dockerfile 带 CRLF 可能让 `RUN` 的续行失效。
+5. `AICHAT_*` 必须在 `up -d` **之前**写进 `.env`（环境变量是创建容器时注入的，晚改就要再重建一次）。
 
 ---
 
@@ -283,6 +336,8 @@ nginx 在**启动时**解析 `proxy_pass` 里的上游主机名，任一服务�
 | **B. 自建镜像（正式）** | 用 GitHub Actions 从本 fork 的 `feature/v1.1.6-base` 构建并推送 ai-service 镜像，再改 compose 用它 | 首次几分钟（CI） | 是（云端，不占本机磁盘） | **最终形态**：镜像与代码一致，含后续自研改动 |
 | **C. 本机构建** | 本机 `docker build` | 依赖本机 Docker + 磁盘 | 是 | ⚠️ 不建议：本机 D 盘仅剩约 9GB，构建镜像风险高 |
 | **D. 容器内热补丁** | `docker exec -u 0 <c> pip install pytz && docker restart <c>` | 1 分钟 | 否 | 只用于"立刻恢复 + B 还没好"的临时窗口；**重启/重建即失效** |
+
+> **本项目现状**：已采用"服务器上自建镜像"（等价于上表的 B，但构建在服务器而非 CI）——见 §2.6。因此 A（钉上游 digest）、D（热补丁）都只作为"还来不及重建时的应急手段"，不再是常规路径。
 
 ### 4.4 推荐执行顺序
 
