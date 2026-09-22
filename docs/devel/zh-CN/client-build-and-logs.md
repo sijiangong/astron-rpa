@@ -62,6 +62,18 @@ pnpm build:desktop
             └─ build:web   (构建 @rpa/web-app + copy:renderer 拷到 out/renderer)
 ```
 
+### 3.3 验证引擎改动真的进了包（别只看退出码）
+
+```bash
+# 1) 安装包内的归档与刚构建的是同一份（sha256 必须一致；Windows 无 sha256sum 可用 certutil -hashfile <文件> SHA256）
+sha256sum <输出目录>/win-unpacked/resources/python_core.7z resources/python_core.7z
+
+# 2) 解压出来的环境里能看到你的改动（<改动特征> 取一段你改过的代码/字符串）
+grep -r -c "<改动特征>" build/python_core/Lib/site-packages/<对应模块路径>
+```
+
+> 已安装的客户端可再查 `<用户数据目录>\python_core\Lib\site-packages\...`（首启按 `python_core.7z.sha256.txt` 决定是否重新解压，见 §6）。
+
 **关键配置**
 
 - `frontend/packages/electron-app/electron-builder.json`
