@@ -1,0 +1,31 @@
+# HC RPA 部署覆盖层（不改动上游 docker-compose.yml）
+#
+# 目的：让 ai-service 用【本仓库源码构建的镜像】，而不是上游 ghcr 预构建镜像。
+#     上游 ai-service:v1.1.6 缺少 pytz 依赖（pyproject.toml 未声明），会导致 uvicorn
+#     worker 全部崩溃、容器却是 Up、8010 无监听 → nginx 502；自建镜像已修复该问题。
+#
+# 用法（二选一）：
+#   1) 显式指定：
+#        docker compose -f docker-compose.yml -f docker-compose.hc.yml up -d --force-recreate ai-service
+#        docker compose restart openresty-nginx          # 必须：容器 IP 变了
+#   2) 免手打：在 docker/.env 里加一行（Compose 支持在 .env 中设置该变量）
+#        COMPOSE_FILE=docker-compose.yml:docker-compose.hc.yml
+#      之后普通的 docker compose ... 命令会自动带上本覆盖层。
+#
+# 前置：把源码包解到 docker/ 的上一级，即 /opt/hc-rpa/src，结构为
+#       /opt/hc-rpa/src/backend/ai-service/{Dockerfile,app,pyproject.toml,uv.lock,README.md}
+#       生成源码包：git archive --format=tar.gz -o ai-service-src.tgz HEAD backend/ai-service
+#
+# 注意：Compose 合并时，覆盖层里的相对路径按【基础文件所在目录】解析，
+#       所以下面的 context: ../src 指的是 docker/ 的上一级（/opt/hc-rpa/src）。
+
+services:
+  ai-service:
+    image: ${AI_SERVICE_IMAGE:-hc-rpa/ai-service:deepseek-flash}
+    build:
+      context: ../src
+      dockerfile: backend/ai-service/Dockerfile
+      args:
+        # 默认走国内镜像源（本覆盖层用于国内部署）；Dockerfile 自身默认值仍是官方源
+        APT_MIRROR: ${APT_MIRROR:-mirrors.aliyun.com}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
