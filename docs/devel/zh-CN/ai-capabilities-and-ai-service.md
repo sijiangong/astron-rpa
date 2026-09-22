@@ -75,7 +75,7 @@
 > - 服务提供方完全由 `AICHAT_BASE_URL` 决定，**模型 id 必须和 base URL 匹配**：
 >   - 指向 MaaS 网关 → 用 `maas/deepseek-v3.2` 这类 id；
 >   - 指向 DeepSeek 官方（`https://api.deepseek.com`）→ 必须换成官方 id（见 §2.3），填 `maas/...` 会 400 invalid model。
-> - 仓库自带的示例是**官方地址**：`backend/ai-service/README.zh.md:160`、`FAQ.zh.md:244` 写的是 `AICHAT_BASE_URL="https://api.deepseek.com/v1/"`，而代码里默认模型 id 是网关写法 —— **照抄示例会出现"地址对了、模型名不对"的 400**。
+> - 仓库自带的示例是**官方地址**：`backend/ai-service/README.zh.md:160`、`FAQ.zh.md:244` 写的是 `AICHAT_BASE_URL="https://api.deepseek.com/v1/"`（**旧兼容写法**；官方现行文档只给不带 `/v1` 的 `https://api.deepseek.com`），而代码里默认模型 id 是网关写法 —— **照抄示例会出现"地址对了、模型名不对"的 400**。
 > - 上游同时内置 `maas/kimi-k2-thinking`（Kimi 也在同一个网关里）这一点，可佐证其演示环境接的是**聚合网关**而非厂商官方 API。
 
 ### 2.2 模型 id 写死在哪（决定"换模型要动多少东西"）
@@ -125,13 +125,18 @@
 
 改的都是部署目录的 `.env`（如 `docker/.env`），改完 `docker compose up -d --force-recreate ai-service`，**并重启 openresty-nginx**。
 
-**先记住一条**：`AICHAT_BASE_URL` **必须以 `/` 结尾**，否则 `urljoin` 会吃掉最后一段路径（实测）：
+**先记住一条**：代码是 `urljoin(AICHAT_BASE_URL, "chat/completions")`，所以 **只有当 base URL 里带路径段时才必须用 `/` 结尾**（下面均为实测结果）：
 
-| 写法 | `urljoin(base, "chat/completions")` |
-|---|---|
-| `https://api.deepseek.com/v1/` | `https://api.deepseek.com/v1/chat/completions` ✅ |
-| `https://api.deepseek.com/v1` | `https://api.deepseek.com/chat/completions` ⚠️ 丢了 `/v1` |
-| `https://gw.example.com/maas/v1/` | `https://gw.example.com/maas/v1/chat/completions` ✅ |
+| base URL 写法 | 实际请求地址 | 说明 |
+|---|---|---|
+| `https://api.deepseek.com` | `https://api.deepseek.com/chat/completions` | ✅ 官方现行写法（不带 `/v1`） |
+| `https://api.deepseek.com/` | `https://api.deepseek.com/chat/completions` | ✅ 与上一行等价 |
+| `https://api.deepseek.com/v1/` | `https://api.deepseek.com/v1/chat/completions` | ⚠️ 旧兼容写法，官方文档已不再列出（是否仍兼容需实测） |
+| `https://api.deepseek.com/v1` | `https://api.deepseek.com/chat/completions` | ⚠️ `/v1` 被 urljoin 吃掉，恰好落在官方地址上 |
+| `https://gw.example.com/maas/v1/` | `https://gw.example.com/maas/v1/chat/completions` | ✅ 带路径段 → **结尾的 `/` 必不可少** |
+| `https://gw.example.com/maas/v1` | `https://gw.example.com/maas/chat/completions` | ❌ 少了 `/` 会丢掉 `v1` |
+
+> 结论：接 **DeepSeek 官方** → `https://api.deepseek.com` 或 `https://api.deepseek.com/` 都行（**不带 `/v1`**，与官方 curl 示例一致）；接**带路径的网关**（如 `/maas/v1/`）→ 结尾务必加 `/`。
 
 #### 方案① 接 MaaS 聚合网关（改动最小，与上游默认一致）
 
@@ -147,7 +152,7 @@ AICHAT_API_KEY="<网关 key>"
 #### 方案② 接 DeepSeek 官方（必须连带改模型 id）
 
 ```bash
-AICHAT_BASE_URL="https://api.deepseek.com/v1/"   # 仓库 README/FAQ 示例就是这个写法
+AICHAT_BASE_URL="https://api.deepseek.com/"   # 官方现行文档不带 /v1；仓库 README/FAQ 里的 /v1/ 属旧兼容写法
 AICHAT_API_KEY="sk-..."
 ```
 
@@ -163,6 +168,8 @@ AICHAT_API_KEY="sk-..."
 ⚠️ 但**智能组件（优化提问/生成/修复）不受此影响** —— 它用的是服务端写死的 id，必须改服务端 + 重建镜像，客户端改不了。
 
 **与 DeepSeek 无关但仍要单独配的**：CUA（`CUA_BASE_URL`/`CUA_API_KEY`，模型 `doubao-seed-1-8-251228`）、通用 OCR（`XFYUN_*`）、打码（`JFBYM_*`）。
+
+**费用与能力提醒**（官方 2026-09-22）：按 token 计费，空闲时段单价为高峰时段的一半（高峰 = 北京时间周一至周五 9:00-12:00、14:00-18:00，法定节假日除外）；`deepseek-v4-pro` **不支持图像理解**，需要图片输入只能用 `deepseek-flash`。
 
 #### 两个方案通用的验证顺序
 
