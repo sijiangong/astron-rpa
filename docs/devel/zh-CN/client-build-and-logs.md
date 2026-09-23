@@ -45,8 +45,23 @@ build.bat --skip-frontend  REM 只做引擎段（改了 engine/ 时；实测约 
 build.bat --help           REM 查看 PYTHON_EXE / SEVENZ_EXE / PYPI_INDEX_URL 等参数
 ```
 
-- 引擎段需要 Python **3.13** + 7-Zip，默认找 `C:\Program Files\Python313\python.exe` 与 `C:\Program Files\7-Zip\7z.exe`，可用参数覆盖；仓库自带的 `resources\7zr.exe` 可当 7-Zip 用：
-  `build.bat --python-exe %APPDATA%\uv\python\cpython-3.13-windows-x86_64-none\python.exe --sevenz-exe resources\7zr.exe`
+- 引擎段需要 Python **3.13** + 7-Zip，默认找 `C:\Program Files\Python313\python.exe` 与 `C:\Program Files\7-Zip\7z.exe`，可用参数覆盖；仓库自带的 `resources\7zr.exe` 可当 7-Zip 用。
+
+  ⚠️ **`--python-exe` / `--sevenz-exe` 必须传「绝对路径」（含盘符）。**
+  脚本的路径校验发生在 `cd` 之前、真正调用 7z 发生在 `cd /d build\python_core` **之后**，
+  因此相对路径在调用时会失效；又因为紧接着的 `cd /d "%SCRIPT_DIR%"` 把 errorlevel 重置为 0，
+  那次失败**不会被报告**——脚本照样打印 `compressed successfully`，而 `resources/python_core.7z`
+  **还是旧的那一份**（只重算了 `.sha256.txt`，看起来哈希还对得上，极易误判）。
+
+  ```bat
+  build.bat --skip-frontend ^
+    --python-exe %APPDATA%\uv\python\cpython-3.13-windows-x86_64-none\python.exe ^
+    --sevenz-exe D:\workspace-vscode\astron-rpa\resources\7zr.exe
+  ```
+
+  **判断是否真的重建**：看 `resources/python_core.7z` 的**修改时间**，或按 3.3 核对归档内文件日期。
+
+- 在 Git Bash 里通过 `cmd //c` 调用时**不要给路径加引号**（会被转义成 `\"`，报 “Local Python environment not found”）；路径不含空格时无需引号。
 - 依赖安装源用 `PYPI_INDEX_URL` 覆盖（默认清华源）；镜像返 403 时换 `https://mirrors.aliyun.com/pypi/simple/`。
 - 副作用：过程中会临时改写 `engine/pyproject.toml`（追加 `[tool.uv.workspace]`）、重写 `engine/requirements.txt`、覆盖 `resources\python_core.7z` 与同名 `.sha256.txt`；正常结束会还原，仅被强杀时可能残留 `engine/pyproject.toml.backup`。
 
