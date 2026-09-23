@@ -140,6 +140,55 @@ src.save('frontend/public/icons/icon.ico', format='ICO',
 
 `npm run build` 内含 `typecheck`（node/web 两套 tsconfig）。类型错误会让打包直接失败——先本地跑通 `npm run typecheck`。
 
+### 4.4 覆盖安装后启动失败：孤儿进程锁住 `python_core`
+
+**现象**：不卸载旧版本、直接覆盖安装后启动，`main.log` 里：
+
+```
+hash不匹配: python_core.7z            ← 正常：安装包换了，需要重新解压
+[重试 1/5] 清理解压目录 失败 (EPERM): unlink '...\python_core\python3.dll'
+...
+[启动失败] Python 运行环境初始化失败，客户端无法启动
+```
+
+随后 `closeSubProcess` 还会报 `Failed to import encodings module`。
+
+**原因**：上次客户端被强杀（或覆盖安装时旧实例仍在跑），它启动的
+`python_core\python.exe` / `route.exe` / 插件进程成了孤儿，一直存活并锁着
+`python313.dll` / `python3.dll`，导致目录删不掉 → 重新解压失败。
+**它们不会自己退出**，必须手工结束。
+
+**手工恢复**（旧版本遇到时）
+
+```powershell
+# 1. 找出占用进程（确认列表里都是 hc-rpa 的进程）
+Get-CimInstance Win32_Process |
+  Where-Object { $_.ExecutablePath -like "$env:APPDATA\hc-rpa*" } |
+  Select-Object ProcessId, ExecutablePath
+
+# 2. 结束它们
+Get-CimInstance Win32_Process |
+  Where-Object { $_.ExecutablePath -like "$env:APPDATA\hc-rpa*" } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+```powershell
+# 3. 删掉已被删坏的环境，让它重新解压（设置/日志/venvs 不受影响）
+Remove-Item -Recurse -Force "$env:APPDATA\hc-rpa\python_core", "$env:APPDATA\hc-rpa\python_core.temp"
+Remove-Item -Force "$env:APPDATA\hc-rpa\python_core.7z.sha256.txt"
+```
+
+然后重新启动客户端（首次会重新解压，需数十秒）。
+
+**当前版本的处理**（不必再手工介入）
+
+- 先在**临时目录**完整解压，成功后才动旧环境；不再“先删旧目录再解压”，
+  因此不会出现“删了一半、既起不来又无法自动恢复”的坏死环境
+- 让旧环境让位时**优先改名旁置**（`python_core.old`），改名失败才结束占用进程重试，
+  最后才退化为删除；替换失败还会把旁置的旧环境还原回去
+- 清理/替换被占用时，会**自动结束可执行文件位于用户目录下的残留进程**再重试
+  （日志出现 `已结束 N 个占用进程`）
+
 ---
 
 ## 5. 日志查看
@@ -192,6 +241,9 @@ tail -f "/c/Users/<用户名>/AppData/Roaming/hc-rpa/logs/main.log"
 | `[启动失败]` | 已触发失败弹窗（含「打开日志目录」） |
 | `port precheck failed` / `启动失败：客户端所需端口不可用` | 端口被占用或被系统保留，见 5.4 |
 | `rpa_route is not health, start recover`（在 `scheduler-*.log` 里） | 本地路由端口绑不上，引擎反复重启，见 5.4 |
+| `清理解压目录 失败 (EPERM)` / `文件被占用` | 残留进程锁着 `python_core` 下的 dll，见 4.4 |
+| `旁置旧环境` / `已结束 N 个占用进程` | 旧环境或残留进程被自动处理，属正常自愈 |
+| `临时目录被占用，无法清理` | 连临时目录都清不掉、解压无法开始（多为杀软或残留进程） |
 
 ### 5.4 启动失败：端口被占用或被系统保留
 
@@ -269,7 +321,8 @@ net start winnat
 | `python_core/` | 引擎运行环境，由安装包内 `resources/python_core.7z` 解压而来 |
 | `python_core.7z.sha256.txt` | 校验文件，用于判断是否需要重新解压 |
 | `venvs/`、`logs/`、`.setting.json`、`.cookie.json` 等 | 虚拟环境、日志、客户端设置 |
-| `python_core.temp/` | **解压中的临时目录**；若它与 `python_core/` 同时"只剩 temp"，说明重命名失败（旧版会卡在 90%） |
+| `python_core.temp/` | **解压中的临时目录**（见 4.4） |
+| `python_core.old/` | 被替换下来的**上一份**引擎环境；正常情况会自动删除，若残留说明其中文件仍被占用，可手工删除 |
 
 要点：
 - **删除该目录 = 强制重新解压 python 环境**（首次启动会解压数百 MB，属正常，耗时数十秒）

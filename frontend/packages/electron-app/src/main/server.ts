@@ -61,6 +61,144 @@ async function moveDirWithRetry(srcDir: string, destDir: string): Promise<void> 
   await withRetry(() => fs.rm(srcDir, { recursive: true, force: true }), `删除临时目录 ${srcDir}`)
 }
 
+/**
+ * 路径是否存在
+ */
+async function pathExists(target: string): Promise<boolean> {
+  return fs.access(target).then(() => true).catch(() => false)
+}
+
+/**
+ * 结束所有「可执行文件位于指定目录下」的进程。
+ *
+ * 覆盖安装、或上次被强杀后，本应用启动的 python / route / picker 等子进程可能残留，
+ * 它们会锁住 python_core 下的 dll，使目录无法清理或替换（EPERM）。
+ * 这些孤儿进程属于本应用，结束它们是安全的；本进程的可执行文件不在该目录下，不会被误伤。
+ *
+ * @returns 结束的进程数量
+ */
+async function killProcessesUnderDir(dirPath: string): Promise<number> {
+  if (process.platform !== 'win32') {
+    logger.warn('非 Windows 平台暂不支持按目录结束占用进程')
+    return 0
+  }
+
+  // 用 -EncodedCommand 传脚本，彻底绕开引号/换行在 cmd 下的转义问题
+  const escapedDir = dirPath.replace(/'/g, '\'\'')
+  const script = [
+    `$target = '${escapedDir}';`,
+    '$killed = 0;',
+    'Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |',
+    'Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($target, [System.StringComparison]::OrdinalIgnoreCase) } |',
+    'ForEach-Object {',
+    '  try {',
+    '    Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop;',
+    '    Write-Output ("killed " + $_.ProcessId + " " + $_.ExecutablePath);',
+    '    $killed++',
+    '  } catch { }',
+    '};',
+    'Write-Output ("count=" + $killed)',
+  ].join(' ')
+  const encoded = Buffer.from(script, 'utf16le').toString('base64')
+
+  return new Promise<number>((resolve) => {
+    exec(
+      `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
+      (error, stdout) => {
+        if (error) {
+          logger.error(`结束占用进程失败: ${error.message}`)
+          resolve(0)
+          return
+        }
+        const output = stdout.trim()
+        const match = output.match(/count=(\d+)/)
+        const killed = match ? Number(match[1]) : 0
+        if (killed > 0)
+          logger.warn(`已结束 ${killed} 个占用进程:\n${output}`)
+        resolve(killed)
+      },
+    )
+  })
+}
+
+/**
+ * 强制删除目录；被占用（EPERM/EBUSY）时先结束占用进程再重试一次。
+ * @returns 是否已删除（目录本来就不存在也算成功）
+ */
+async function removeDirForce(dirPath: string, label: string): Promise<boolean> {
+  try {
+    await withRetry(() => fs.rm(dirPath, { recursive: true, force: true }), label, 3, 500)
+    return true
+  }
+  catch (error) {
+    logger.warn(`${label} 失败，尝试结束占用进程后重试: ${(error as Error)?.message}`)
+  }
+
+  const killed = await killProcessesUnderDir(appWorkPath)
+  if (killed === 0) {
+    logger.error(`${label} 失败，且未发现可结束的占用进程: ${dirPath}`)
+    return false
+  }
+
+  try {
+    await withRetry(() => fs.rm(dirPath, { recursive: true, force: true }), label, 3, 500)
+    return true
+  }
+  catch (error) {
+    logger.error(`${label} 在结束占用进程后仍失败: ${(error as Error)?.message}`)
+    return false
+  }
+}
+
+/**
+ * 让已存在的目录「让位」，供新目录顶上。
+ *
+ * 优先改名旁置（原子的元数据操作，目录内部文件被占用时通常仍能成功），
+ * 而不是直接递归删除——删除是破坏性操作，一旦中途失败就会留下“删了一半、
+ * 既起不来又无法自动恢复”的坏死环境（曾导致客户端启动失败且必须手工清理）。
+ * 改名失败时才结束占用进程重试，仍失败则抛错；此时旧环境保持完整。
+ *
+ * @returns 是否真的旁置了（目录原本不存在时返回 false）
+ */
+async function retireExistingDir(outputDir: string, backupDir: string): Promise<boolean> {
+  if (!await pathExists(outputDir))
+    return false
+
+  // 清理历史遗留的备份，否则改名会因目标已存在而失败
+  if (await pathExists(backupDir)) {
+    if (!await removeDirForce(backupDir, '清理历史备份目录'))
+      throw new Error(`历史备份目录被占用，无法清理: ${backupDir}`)
+  }
+
+  // 首选：改名旁置（原子的元数据操作，且不会破坏内容）
+  try {
+    await withRetry(() => fs.rename(outputDir, backupDir), '旁置旧环境', 3, 500)
+    logger.info(`旧环境已旁置为: ${backupDir}`)
+    return true
+  }
+  catch (error) {
+    logger.warn(`旁置旧环境失败，尝试结束占用进程后重试: ${(error as Error)?.message}`)
+  }
+
+  if (await killProcessesUnderDir(appWorkPath) > 0) {
+    try {
+      await withRetry(() => fs.rename(outputDir, backupDir), '旁置旧环境', 3, 500)
+      logger.info(`旧环境已旁置为: ${backupDir}`)
+      return true
+    }
+    catch (error) {
+      logger.warn(`结束占用进程后仍无法旁置: ${(error as Error)?.message}`)
+    }
+  }
+
+  // 退而求其次：直接删除旧环境。此时新环境已在临时目录中就绪，不存在“删了一半没得用”的风险。
+  logger.warn('改为直接删除旧环境')
+  if (!await removeDirForce(outputDir, '删除旧环境'))
+    throw new Error(`旧环境既无法旁置也无法删除（可能仍被占用）: ${outputDir}`)
+
+  return false
+}
+
 // 应用是否正在关闭（关闭过程中引擎退出属正常，不应弹失败提示）
 let isShuttingDown = false
 
@@ -468,28 +606,42 @@ async function extractAndCleanFile(fileName: string, percentCallback: (percent: 
   const archivePath = join(resourcePath, fileName)
   const outputDir = join(appWorkPath, fileName.replace('.7z', ''))
   const tempOutputDir = `${outputDir}.temp`
+  const backupDir = `${outputDir}.old`
 
-  // 1. 确保临时目录/目标目录不存在（清除失败则直接抛错，避免后续解压到脏目录）
-  try {
-    await withRetry(() => Promise.all([
-      fs.rm(tempOutputDir, { recursive: true, force: true }),
-      fs.rm(outputDir, { recursive: true, force: true })
-    ]), '清理解压目录')
+  // 1. 只清临时目录。旧环境此刻完全不动——这是「先拿到可用的新环境、再替换」的前提，
+  //    否则清理一旦中途失败，旧环境就被删掉一半，变成既起不来又无法自动恢复的坏死状态。
+  if (!await removeDirForce(tempOutputDir, '清理临时目录')) {
+    throw new Error(`临时目录被占用，无法清理: ${tempOutputDir}`)
   }
-  catch (error) {
-    logger.error(`文件被占用，无法清理解压目录: ${error}`)
-    throw error
-  }
-  logger.info('删除已解压目录')
 
-  // 2. 解压到临时目录
+  // 2. 解压到临时目录（此步成功前不改动旧环境）
   logger.info(`开始解压到临时目录: ${tempOutputDir}`)
   await extract7z(archivePath, tempOutputDir, percentCallback)
 
-  // 3. 将临时目录重命名为目标目录（带重试 + 复制兜底）
-  logger.info(`重命名为目标目录: ${outputDir}`)
-  await moveDirWithRetry(tempOutputDir, outputDir)
+  // 3. 让旧环境让位：优先改名旁置，避免直接递归删除
+  const movedAside = await retireExistingDir(outputDir, backupDir)
 
-  // 4. 复制 hash 文件
+  // 4. 新环境顶上（带重试 + 复制兜底）
+  logger.info(`重命名为目标目录: ${outputDir}`)
+  try {
+    await moveDirWithRetry(tempOutputDir, outputDir)
+  }
+  catch (error) {
+    // 替换失败时尽力把旁置的旧环境还原，避免新旧都没有
+    if (movedAside) {
+      logger.warn(`启用新环境失败，尝试还原旧环境: ${(error as Error)?.message}`)
+      await fs.rename(backupDir, outputDir)
+        .catch(restoreError => logger.error(`还原旧环境失败: ${restoreError}`))
+    }
+    throw error
+  }
+
+  // 5. 复制 hash 文件
   await copySingleFile(`${fileName}.sha256.txt`)
+
+  // 6. 尽力清理旁置的旧环境；失败不影响启动，仅占磁盘
+  if (movedAside) {
+    await fs.rm(backupDir, { recursive: true, force: true })
+      .catch(error => logger.warn(`清理旁置旧环境失败，可稍后手动删除 ${backupDir}: ${error}`))
+  }
 }
