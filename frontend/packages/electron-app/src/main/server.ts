@@ -64,6 +64,9 @@ async function moveDirWithRetry(srcDir: string, destDir: string): Promise<void> 
 // 应用是否正在关闭（关闭过程中引擎退出属正常，不应弹失败提示）
 let isShuttingDown = false
 
+// 引擎上报的最后一条告警文案，用于启动失败弹窗的正文（避免用户还要去翻日志）
+let lastAlertMessage = ''
+
 /**
  * 启动失败时给用户可见的提示。
  * 之前只写日志，用户只会看到进度条停在一处、无从判断；这里弹窗并提供「打开日志目录」。
@@ -144,6 +147,9 @@ export async function startServer() {
   logger.info('正在启动服务')
   sendToRender('正在启动服务', 90)
 
+  // 清理上一次运行遗留的告警文案，避免弹窗复用到过期信息
+  lastAlertMessage = ''
+
   const rpaSetup = exec(
     `"${pythonExe}" -m ${envJson.SCHEDULER_NAME} --conf="${confPath}"`,
     { cwd: appWorkPath },
@@ -168,7 +174,10 @@ export async function startServer() {
     logger.error(`${envJson.SCHEDULER_NAME} exited with error code: ${code}`)
     // 非正常退出且非应用关闭时，给用户明确提示（否则界面会停在启动进度上）
     if (!isShuttingDown) {
-      void notifyLaunchFailure('RPA 引擎启动失败，客户端无法正常工作', `进程退出码：${code}，详情见日志`)
+      void notifyLaunchFailure(
+        'RPA 引擎启动失败，客户端无法正常工作',
+        lastAlertMessage || `进程退出码：${code}，详情见日志`,
+      )
     }
   })
 
@@ -210,7 +219,24 @@ function msgFilter(msg: string) {
     // 发送到渲染进程
     const message = match[1].trim().replaceAll('"', '')
     logger.info(`${envJson.SCHEDULER_NAME} message: `, message)
+    rememberAlert(message)
     win.webContents.send('scheduler-event', message)
+  }
+}
+
+/**
+ * 记录引擎上报的告警文案（||emit|| 的 payload 是 JSON 的 base64），
+ * 供启动失败弹窗作为正文使用，用户不必再翻日志
+ */
+function rememberAlert(message: string) {
+  try {
+    const parsed = JSON.parse(Buffer.from(message, 'base64').toString('utf-8'))
+    if (parsed?.type === 'alert' && parsed?.msg?.msg) {
+      lastAlertMessage = parsed.msg.msg
+    }
+  }
+  catch {
+    // 非 base64 JSON 的消息（如组件更新进度）忽略即可
   }
 }
 

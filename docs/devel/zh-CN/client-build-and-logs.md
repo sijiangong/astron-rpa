@@ -175,6 +175,73 @@ tail -f "/c/Users/<用户名>/AppData/Roaming/hc-rpa/logs/main.log"
 | `系统找不到指定的路径` | 典型是 `python_core\python.exe` 不存在 |
 | `exited with error code` | 引擎异常退出（新版会弹窗提示） |
 | `[启动失败]` | 已触发失败弹窗（含「打开日志目录」） |
+| `port precheck failed` / `启动失败：客户端所需端口不可用` | 端口被占用或被系统保留，见 5.4 |
+| `rpa_route is not health, start recover`（在 `scheduler-*.log` 里） | 本地路由端口绑不上，引擎反复重启，见 5.4 |
+
+### 5.4 启动失败：端口被占用或被系统保留
+
+**现象**：进度条停在最后不动；`main.log` 最后一行是 `正在启动服务`、之后再无输出；同时 `logs/scheduler-<日期>.log` 里持续刷：
+
+```
+rpa_route is not health, start recover
+cmd: [...\core\route\win\route.exe', '--port=13159', ...]
+```
+
+**原因**：引擎所需的本地端口**无法绑定**，`route.exe` 一起来就退出，调度器于是每几秒重启一次、无限循环——引擎永远不会返回“就绪”，界面就一直停在启动页。
+
+端口不可用分两种，**处理方式完全不同**：
+
+| 类型 | 判断依据 | 处理 |
+|---|---|---|
+| **被其它程序占用** | 端口能连上（有进程在监听） | 关掉占用端口的程序：`netstat -ano \| findstr :<端口>` 找到 PID |
+| **被操作系统保留** | 连不上、也绑不上（bind 报 `WSAEACCES` 10013） | 见下方 winnat 处理 |
+
+保留端口是 Windows 上 Hyper-V / WSL2 / Docker Desktop 抢走动态端口段造成的，典型报错：
+
+```
+listen tcp :13159: bind: An attempt was made to access a socket in a way forbidden by its access permissions.
+```
+
+**排查**
+
+```bat
+netsh int ipv4 show excludedportrange protocol=tcp
+netsh int ipv4 show dynamicport tcp
+```
+
+如果所需端口（默认 `13159`、`9082`、`11001`）落在“端口排除范围”里，就是这个原因。
+
+**修复**（管理员命令行）
+
+```bat
+net stop winnat
+net start winnat
+netsh int ipv4 show excludedportrange protocol=tcp    :: 复查保留段是否已释放
+```
+
+根治建议把动态端口范围改回默认（被改成低位起点时，Hyper-V 会反复抢占 1xxxx 段）：
+
+```bat
+net stop winnat
+netsh int ipv4 set dynamic tcp start=49152 num=16384
+net start winnat
+```
+
+> Docker Desktop / WSL 每次启动都可能重新占用，重启机器后建议复查一次。
+
+**版本行为差异**
+
+- 新版：引擎启动前会**预检**所有必需端口，不可用时弹出原生告警窗（正文含具体端口、原因与上面这段修复命令），用户关闭后退出，**不再无限卡在启动页**。
+- 旧版：无预检，表现为进度条停住且无任何提示。
+
+**代码位置**（便于对照修改）
+
+| 位置 | 作用 |
+|---|---|
+| `engine/.../scheduler/utils/utils.py` | `classify_port()` 区分 `free`/`occupied`/`reserved`；注意 `check_port()` 只判断“有没有人监听”，**不能**用来判断保留端口 |
+| `engine/.../scheduler/core/svc.py` | `collect_bound_ports()` 端口清单、`precheck_ports_message()` 组装提示文案 |
+| `engine/.../scheduler/start.py` | 启动流程中调用预检，失败则 `emit_to_front(ALERT)` + `sys.exit(4)` |
+| `frontend/packages/electron-app/src/main/server.ts` | 捕获引擎上报的告警文案，作为启动失败弹窗正文 |
 
 ---
 
@@ -199,7 +266,8 @@ tail -f "/c/Users/<用户名>/AppData/Roaming/hc-rpa/logs/main.log"
 
 | 现象 | 处理 |
 |---|---|
-| 启动进度条停在 80~90% 不动 | 看 `main.log` 的解压/重命名日志；新版会弹窗并提供「打开日志目录」 |
+| 启动进度条停在 80~90% 不动 | 看 `main.log`：有 `解压/安装失败` 则为环境解压问题；停在 `正在启动服务` 之后且无输出，则看 `scheduler-*.log` 的 `rpa_route is not health`（端口问题，见 5.4）。新版两种情况都会弹窗 |
+| 提示「客户端所需端口不可用」 | 按 5.4 区分“被占用”还是“被系统保留”，后者需重置 winnat |
 | 打包报 `rcedit ... Unable to commit changes` | 输出目录改到工作区外（见 4.1） |
 | 打包报 `icon.ico must be at least 256x256` | 按 4.2 重新生成 ICO |
 | 装完引擎起不来 | 检查 `<用户数据目录>\python_core\python.exe` 是否存在 |

@@ -1,4 +1,5 @@
 import argparse
+import sys
 import time
 import traceback
 from pathlib import Path
@@ -21,12 +22,15 @@ from astronverse.scheduler.core.servers.core_server import (
 )
 from astronverse.scheduler.core.setup.setup import Process
 from astronverse.scheduler.core.svc import get_svc
-from astronverse.scheduler.utils.utils import check_port
+from astronverse.scheduler.utils.utils import EmitType, check_port, emit_to_front
 from fastapi import FastAPI
 
 # 0. app实例化，并做初始化
 app = FastAPI()
 route.handler(app)
+
+# 端口预检失败时的进程退出码（客户端据此弹出启动失败提示）
+PORT_PRECHECK_FAILED_EXIT_CODE = 4
 
 
 def start(args):
@@ -44,6 +48,14 @@ def start(args):
         Process.kill_all_zombie()
         win_env_check(svc)
         linux_env_check()
+
+        # 3.5 端口预检
+        # 端口被占用或被系统保留时直接退出：否则子进程会反复重启、界面会一直停在启动页且无任何提示
+        precheck_message = svc.precheck_ports_message()
+        if precheck_message:
+            logger.error("port precheck failed: {}".format(precheck_message))
+            emit_to_front(EmitType.ALERT, msg={"msg": precheck_message, "type": "error"})
+            sys.exit(PORT_PRECHECK_FAILED_EXIT_CODE)
 
         # 4. 服务注册与启动
         server_mg = ServerManager(svc)

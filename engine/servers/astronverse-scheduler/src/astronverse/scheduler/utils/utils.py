@@ -66,6 +66,9 @@ def emit_to_front(emit_type: EmitType, msg=None):
 def check_port(port, host="127.0.0.1"):
     """
     检测端口是否可用
+
+    注意：这里只判断“有没有程序在监听”，被系统保留的端口（既没人监听、也无法 bind）
+    会被误判为可用，需要精确判断请使用 classify_port。
     """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -77,6 +80,67 @@ def check_port(port, host="127.0.0.1"):
     except Exception as e:
         pass
     return True
+
+
+class PortStatus(str, Enum):
+    """
+    端口可用性分类
+    """
+
+    FREE = "free"  # 可正常绑定
+    OCCUPIED = "occupied"  # 已有程序在监听
+    RESERVED = "reserved"  # 没有程序监听，但操作系统不允许绑定
+
+
+def classify_port(port: int, host: str = "127.0.0.1") -> PortStatus:
+    """
+    精确判断端口可用性：先看是否被占用，再尝试真正 bind
+
+    仅做探测，bind 成功后立即释放，不会长期占用端口。
+    """
+    # 1. 有程序在监听 => 被占用
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.2)
+            if sock.connect_ex((host, port)) == 0:
+                return PortStatus.OCCUPIED
+    except Exception:
+        pass
+
+    # 2. 没人监听，再尝试真正绑定；绑不上说明该端口被系统保留
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((host, port))
+    except OSError as e:
+        logger.warning("port {} is not bindable: {}".format(port, e))
+        return PortStatus.RESERVED
+
+    return PortStatus.FREE
+
+
+def describe_port_status(status: PortStatus) -> str:
+    """
+    端口状态的简短说明（用于按原因分组展示）
+    """
+    if status == PortStatus.OCCUPIED:
+        return "已被其它程序占用"
+    if status == PortStatus.RESERVED:
+        return "被操作系统保留，无法绑定"
+    return "可用"
+
+
+def describe_port_advice(status: PortStatus) -> str:
+    """
+    端口不可用时的处置建议
+    """
+    if status == PortStatus.OCCUPIED:
+        return "请关闭占用该端口的程序后重试"
+    if status == PortStatus.RESERVED:
+        return (
+            "常见原因是 WSL2/Docker/Hyper-V 保留了该端口段，"
+            "可在管理员命令行执行 net stop winnat 后再执行 net start winnat，然后重试"
+        )
+    return ""
 
 
 def kill_proc_tree(proc: psutil.Process = None, including_parent: bool = True, exclude_pids: list = None):
