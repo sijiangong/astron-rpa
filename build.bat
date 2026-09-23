@@ -5,6 +5,15 @@ REM Save script directory path IMMEDIATELY
 set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
+REM Work from the repository root. Every relative path below (engine / build /
+REM resources) is relative to it, so invoking this script from another directory
+REM or via an absolute path must not change the result.
+cd /d "%SCRIPT_DIR%"
+if errorlevel 1 (
+    echo Failed to enter script directory: %SCRIPT_DIR%
+    exit /b 1
+)
+
 setlocal enabledelayedexpansion
 
 REM ============================================
@@ -124,6 +133,12 @@ if not exist "%SEVENZ_EXE%" (
     echo   3. Modify default value in build.bat
     exit /b 1
 )
+
+REM Resolve to absolute paths. The compression step later runs after
+REM `cd /d build\python_core`, where a path relative to the repository root
+REM no longer resolves - that used to make the 7z call fail silently.
+for %%I in ("%PYTHON_EXE%") do set "PYTHON_EXE=%%~fI"
+for %%I in ("%SEVENZ_EXE%") do set "SEVENZ_EXE=%%~fI"
 
 uv --version >nul 2>&1
 if errorlevel 1 (
@@ -294,10 +309,17 @@ REM ============================================
 
 echo Compressing python_core directory...
 cd /d "%PYTHON_CORE_DIR%"
-"%SEVENZ_EXE%" a -t7z "%SCRIPT_DIR%\%ARCHIVE_DIST_DIR%\python_core.7z" "*" >nul
-cd /d "%SCRIPT_DIR%"
 if errorlevel 1 (
-    echo python_core directory compression failed
+    echo Failed to enter python_core directory: %PYTHON_CORE_DIR%
+    exit /b 1
+)
+"%SEVENZ_EXE%" a -t7z "%SCRIPT_DIR%\%ARCHIVE_DIST_DIR%\python_core.7z" "*" >nul
+REM Capture the exit code BEFORE the next cd: `cd` resets errorlevel to 0, which
+REM used to make a failed compression look like success and ship a stale archive.
+set "COMPRESS_ERR=!errorlevel!"
+cd /d "%SCRIPT_DIR%"
+if not "!COMPRESS_ERR!"=="0" (
+    echo python_core directory compression failed ^(exit code !COMPRESS_ERR!^)
     exit /b 1
 )
 echo Python_core directory compressed successfully, file saved to: %SCRIPT_DIR%\%ARCHIVE_DIST_DIR%\python_core.7z
