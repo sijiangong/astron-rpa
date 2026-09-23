@@ -2,6 +2,7 @@
 
 > 适用：桌面客户端（Electron）的日常开发、打包与问题排查。
 > 相关目录：`frontend/`（pnpm workspace 根）、`frontend/packages/electron-app`（客户端主进程，包名仍为 `astron-rpa`）、`frontend/packages/web-app`（渲染层 `@rpa/web-app`）。
+> 相关：已知问题台账见 [`known-issues.md`](./known-issues.md)。
 
 ---
 
