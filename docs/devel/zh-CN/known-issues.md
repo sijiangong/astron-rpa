@@ -23,6 +23,7 @@
 | [KI-07](#ki-07-裸-node-命令是需要-tty-的-shim) | 裸 `node` 命令是需要 tty 的 shim | 开发环境 | 环境限制 |
 | [KI-08](#ki-08-git-bash-下-cmd-c-传带引号的路径被转义) | Git Bash 下 `cmd //c` 传带引号的路径被转义 | 开发环境 | 环境限制 |
 | [KI-09](#ki-09-rpa-发版--开通外部调用) | RPA「发版」≠「开通外部调用」，agent 看不到应用 | 集成 | 已知行为 |
+| [KI-10](#ki-10-上游-ai-servicev116-缺-pytz容器-up-但-8010-无监听) | 上游 `ai-service:v1.1.6` 缺 `pytz`：容器 `Up` 但 8010 无监听 → AI 功能全 502 | 服务端部署 | 已绕过（自建镜像） |
 
 ---
 
@@ -254,8 +255,44 @@ cmd //c 'build.bat --python-exe %APPDATA%\uv\python\cpython-3.13-windows-x86_64-
 
 ---
 
+## KI-10 上游 `ai-service:v1.1.6` 缺 `pytz`：容器 `Up` 但 8010 无监听
+
+**现象**：客户端「编辑应用 → 智能组件 → 优化提问」报 **502 Bad Gateway**；
+`docker compose ps` 里 ai-service 显示 `Up`（无 healthcheck，看不出异常）；
+nginx 错误日志是 `connect() failed (111: Connection refused) while connecting to upstream`。
+
+**根因**
+
+1. `backend/ai-service/app/models/point.py:4` 使用 `pytz`，但上游 `pyproject.toml`/`uv.lock`
+   **未声明**该依赖（由 `3556a3d6` 引入），Dockerfile 只做 `pip install -e .` → 镜像里没有 pytz；
+2. uvicorn `--workers 4` 下，每个 worker 在 `import app.main` 时
+   `ModuleNotFoundError: No module named 'pytz'` 直接退出，调用链：
+   `main.py:8 → internal/admin.py:3 → dependencies/__init__.py:7 → services/point.py:11 → models/point.py:4`；
+3. supervisor 不断重启子进程（日志里 `Process SpawnProcess-116:` / `Child process died`），
+   父进程不退出 → **容器状态一直是 `Up`**，`restart: always` 不会触发；
+4. ai-service **没有 healthcheck**（compose 里只有 mysql/redis/minio/openresty 有）→ 编排层也不认为它坏了。
+
+结果：8010 无人监听 → nginx 502 → **全部 AI 能力不可用**（智能组件、MultiChat、对话/合同/文档/招聘原子、
+CUA、通用 OCR、打码）；未受影响：模板 OCR（本身不可用，见 KI 待办）、外部 Agent 原子（Dify/星辰直连）。
+
+**处置**
+
+- 源码侧：cherry-pick 上游 `5bae24aa`（等价 `03b4ad0b` 一族的 `53b7b02b`）补 `pytz` + 同步 `uv.lock`
+  → 提交 `a6ad64d3`，merge `8f441b4c`；
+- 镜像侧（正式环境）：**在服务器上自建 ai-service 镜像并替换**，步骤见 `server-side-image-build.md`；
+  实测（2026-09-22）：`restarts=0`、容器内 Python 3.13.15、`pytz 2026.3.post1`、`/models` 探测返回
+  `['deepseek-flash', 'deepseek-v4-pro']`；
+- 同期发现并另记：`openresty-nginx` 启动时若解析不到上游名会 `[emerg] host not found in upstream "ai-service:8010"`
+  直接退出 → **全站 502**（不只 AI），加固建议见 `ai-capabilities-and-ai-service.md` §4.5。
+
+**教训**：① 上游 tag 不代表没有缺陷；② 判断容器是否健康不能只看 `Up`，要看依赖是否齐全、
+端口是否真的在监听；③ 换容器后必须 `docker compose restart openresty-nginx`（nginx 启动时会缓存上游 IP）。
+
+---
+
 ## 变更记录
 
 | 日期 | 变更 |
 |---|---|
 | 2026-09-23 | 首次建立：KI-01 ~ KI-09 |
+| 2026-09-23 | 新增 KI-10（上游 ai-service 缺 pytz → AI 功能 502），并新增专题文档 `server-side-image-build.md` |

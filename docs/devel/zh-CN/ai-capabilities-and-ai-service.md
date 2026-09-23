@@ -180,6 +180,9 @@ AICHAT_API_KEY="sk-..."
 
 ### 2.6 本项目实际落地：服务器上自建 ai-service 镜像（路线 3）
 
+> 通用操作手册（可复用到其它后端服务）已单独成文：[`server-side-image-build.md`](./server-side-image-build.md)；
+> 本节只保留 ai-service 这一实例的结论与实测数据。
+
 **为什么必须自建镜像**：正式服务器拉的是上游 `ghcr.io/iflytek/astron-rpa/ai-service:v1.1.6`，该镜像缺 `pytz`（§4.1），**只改 `.env` 修不了**；只有从本仓库源码构建的镜像才带 pytz 修复。
 
 **本仓库为此新增/改动（已提交）**：

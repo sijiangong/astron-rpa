@@ -7,6 +7,7 @@
 | [`known-issues.md`](./known-issues.md) | **已知问题台账**：已知问题与环境陷阱的现象、根因、处置、状态 | 遇到怪问题时**先查这里** |
 | [`client-build-and-logs.md`](./client-build-and-logs.md) | 客户端（Electron）编译打包、日志位置与查看、打包踩坑 | 打客户端包、排查客户端启动/运行问题 |
 | [`astron-rpa-deployment.md`](./astron-rpa-deployment.md) | astron-rpa 服务端独立部署 | 部署 / 升级服务端 |
+| [`server-side-image-build.md`](./server-side-image-build.md) | **在服务器上自建后端镜像并上线**（源码包 / 覆盖层 / 换源 / 验证 / 踩坑） | 上游预构建镜像有问题，或要跑自有后端代码时 |
 | [`astron-agent-integration-deployment.md`](./astron-agent-integration-deployment.md) | 与 Astron Agent 集成部署、外部调用配置 | 打通 RPA ↔ agent |
 | [`ai-capabilities-and-ai-service.md`](./ai-capabilities-and-ai-service.md) | AI 能力与 ai-service 说明（含修复方案） | 排查 AI 相关功能 |
 | [`engine-dependency-changes.md`](./engine-dependency-changes.md) | 引擎依赖（`engine/uv.lock`）变更记录 | 改动引擎依赖 |
